@@ -1,26 +1,46 @@
 #	COMMON section          #
+# http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930729
 all.export / r/w
 
+# http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250505
 all.role manager
+
+# Specify the manager cmsd location. http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250501
 all.manager MANAGERHOST CMSDMANAGERPORT
 
+# Specify execution tracing options. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375806
 #all.trace debug all
 
-#	XRD Daemon section	# set up by xrd.sh at xrootd invocation
+#       XRD Daemon section      #
+# http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375793
 all.adminpath XRDRUNDIR/admin/
+
+# http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375822
 all.pidpath XRDRUNDIR/admin/
 
+# Configure a protocol that xrd is to use for incoming requests. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375801
 xrd.protocol xrootd *
-xrd.port XRDMANAGERPORT
+
+# http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375796
+xrd.port XRDSERVERPORT
+
+# Enable I/O monitoring. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375821
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
 
+# Enable window scaling on the monostream connection. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375799
 xrd.network nodnr
+
+# Specify the location of the file system interface layer. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375819
 xrootd.fslib /usr/libBITARCH/libXrdOfs.so
 
+# Enable and set third-party-copy (TPC) parameters. http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930723
 ofs.tpc pgm /usr/bin/xrdcp -f
 
-#	  CMSD Section		#
+#         CMSD Section          #
+# Manage processing latency. http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250526
 cms.delay servers 1 startup 10
+
+# Specify the parameters for the load balancing scheduling algorithm. http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250517
 cms.sched cpu 10 io 10 space 80
 
 # Specify how servers are selected for file creation
