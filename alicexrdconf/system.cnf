@@ -1,6 +1,29 @@
 # storage element name - ALICE::<SITE_NAME>::SE
 export SE_NAME="ALICE::CHANGE_ME::SE"
 
+#########################################
+# When setting up xrootd servers, a mandatory practice is to have a localroot
+# directive to hide a part of the local directory prefix.
+# For historical reasons, in the Alice computing model, this task
+# is handled by the central DB (!), and every site exports also its local prefix.
+# This led to the need for the (see above) tricky n2n translation
+# If you are not sure about what to do with this localroot, please ask.
+# A typical value for this is something like '/data/disk1/xrdnamespace'
+#########################################
+export LOCALROOT='/CHANGE_ME_FIRST_STORAGE_PARTITION/xrdnamespace'
+
+#########################################
+# Probably in your data servers you are aggregating several mountpoints into a global namespace.
+# e.g. if your machine can use as raw storage
+#  /data/disk1/xrddata and /data/disk2/xrddata
+#
+# then you have to set up the oss.cache directive, through this variable, in this way:
+# export $OSSCACHE='oss.space public /data/disk1/xrddata\noss.space public /data/disk2/xrddata'
+#########################################
+export OSSCACHE='oss.space public /CHANGE_ME_1/xrddata\noss.space public /CHANGE_ME_2/xrddata\noss.space public /CHANGE_ME_3/xrddata'
+
+###########################################################################################################################################
+
 # if you run redirector and server on the same machine, set this line properly
 export SERVERONREDIRECTOR="0"
 
@@ -13,12 +36,13 @@ export XRDDEBUG=""
 export XRDMAXFD=65000
 
 #########################################
-# define if you run as:
-#  --- overlay to DPM
+# define if you run as: --- overlay to DPM
 #export SYSTEM=DPM
+
 # define the DPM/DPNS_HOST name
 #export DPM_HOST=...
 #export DPNS_HOST=...
+
 # this is needed to be able to connect with the root identity
 #export CSEC_MECH=ID
 
@@ -42,35 +66,9 @@ if [ "x$SERVERONREDIRECTOR" = "x1" ]; then
    export CMSDSERVERPORT=3123
 fi
 
-
 #########################################
 # The XrdAcc library which applies the authorization mechanism
 # for ALICE it is libXrdAliceTokenAcc.so (empty string or comment to disable the authz)
 #########################################
 export ACCLIB=libXrdAliceTokenAcc.so
 
-#########################################
-# When setting up xrootd servers, a mandatory practice is to have a localroot
-# directive to hide a part of the local directory prefix.
-# For historical reasons, in the Alice computing model, this task
-# is handled by the central DB (!), and every site exports also its local prefix.
-# This led to the need for the (see above) tricky n2n translation
-# If you are not sure about what to do with this localroot, please ask.
-# A typical value for this is something like '/data/disk1/xrdnamespace'
-#########################################
-
-export LOCALROOT='/CHANGE_ME_FIRST_STORAGE_PARTITION/xrdnamespace'
-
-#########################################
-# Probably in your data servers you are aggregating several mountpoints into a global namespace.
-#
-# e.g. if your machine can use as raw storage
-#  /data/disk1/xrddata    and
-#  /data/disk2/xrddata
-#
-# then you have to set up the oss.cache directive, through this variable, in this way:
-# export $OSSCACHE='oss.space public /data/disk1/xrddata\noss.space public /data/disk2/xrddata'
-#
-#########################################
-
-export OSSCACHE='oss.space public /CHANGE_ME_1/xrddata\noss.space public /CHANGE_ME_2/xrddata\noss.space public /CHANGE_ME_3/xrddata'
