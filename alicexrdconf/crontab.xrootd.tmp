@@ -1,0 +1,3 @@
+#min    hour    daymo   month   daywk   cmd
+*/5      *       *       *       *      XRDSHDIR/xrd.sh -c >> XRDRUNDIR/logs/xrd.watchdog.log 2>&1
+

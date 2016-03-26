@@ -1,0 +1,51 @@
+xrootd.fslib /usr/libBITARCH/libXrdOFSLIB.so
+all.adminpath XRDRUNDIR/admin
+xrd.pidpath XRDRUNDIR/admin
+olb.pidpath XRDRUNDIR/admin
+
+#
+# XRD/OLB section
+all.trace debug all
+
+xrd.port XRDMANAGERPORT
+olb.port OLBDMANAGERPORT
+olb.xmilib /usr/libBITARCH/libXrdDPMXmi.so
+dpm.xrdserverport XRDSERVERPORT
+dpm.mkpath 1
+
+# xrootd internal monitoring
+xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
+xrd.report localhost:1234 every 2m -client
+
+# Avoid hard limit at 30 OLBDs
+if exec olbd
+xrd.sched mint 10 maxt 100 avlt 20
+else
+xrd.sched mint 16 maxt 512 avlt 16
+fi
+
+#
+# Export /
+xrootd.export /
+
+# Paths
+olb.path ws /
+
+# Role
+all.role manager
+
+# Subscribe
+olb.subscribe  MANAGERHOST OLBDMANAGERPORT
+
+#
+# ODC section
+all.manager  MANAGERHOST OLBDMANAGERPORT
+
+#
+# Delay clients at startup
+olb.delay startup 5 lookup 3
+
+oss.nodread
+oss.alloc 1G
+
+

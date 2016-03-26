@@ -1,0 +1,64 @@
+#	COMMON section          #
+all.export / nolock r/w nocheck norcreate
+
+all.role server
+all.manager MANAGERHOST CMSDMANAGERPORT
+
+#all.trace debug all
+
+#	XRD Daemon section	#
+all.adminpath XRDRUNDIR/admin/
+all.pidpath XRDRUNDIR/admin/
+
+xrd.protocol xrootd *
+xrd.port XRDSERVERPORT
+xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
+## xrd.report localhost:1234 every 2m -client
+
+xrootd.async off
+xrootd.chksum max 2 md5
+xrd.sched mint 32 maxt 2048 avlt 512 idle 780
+
+
+#     3rd party xfers stuff     #
+#xrootd.fslib /usr/libBITARCH/libXrdxFtsOfs.so
+## enable third party copies in this machines
+#ftsofs.thirdparty 1
+#ftsofs.thirdparty.statedirectory XRDLOGSDIR/admin
+## number of transfers in parallel
+#ftsofs.thirdparty.slots 5
+## nominal io rate of a single transfer (25 Mb)
+#ftsofs.thirdparty.slotrate 25
+
+ofs.trace open
+ofs.tpc pgm /usr/bin/xrdcp -f
+
+# Enable window scaling on the monostream connection
+xrd.network buffsz 0 nodnr
+
+#         Auth Section          #
+xrootd.seclib /usr/libBITARCH/libXrdSec.so
+sec.protocol /usr/libBITARCH unix
+ofs.authlib /usr/libBITARCH/ACCLIB
+ofs.authorize
+
+#	  CMSD Section		#
+cms.delay servers 1 startup 10
+cms.sched cpu 10 io 10 space 80
+
+
+#	   OSS Section		#
+oss.defaults nomig nodread nocheck norcreate nolock
+oss.alloc 512M 2 0
+## oss.fdlimit * max ## not supported anymore
+
+OSSCACHE
+
+
+# The funny ALICE name translation, for the global metamanager to aggregate all the clusters
+oss.namelib /usr/libBITARCH/libXrdAggregatingName2Name.so LOCALPATHPFX
+
+# The metamanager acts as a virtual stager
+# Beware, internally xrootd strips the trailing slashes so, no point in adding them here
+oss.localroot LOCALROOT
+
