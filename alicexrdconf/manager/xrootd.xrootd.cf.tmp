@@ -13,7 +13,6 @@ all.pidpath XRDRUNDIR/admin/
 xrd.protocol xrootd *
 xrd.port XRDMANAGERPORT
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
-##xrd.report localhost:1234 every 2m -client
 
 xrd.network nodnr
 xrootd.fslib /usr/libBITARCH/libXrdOfs.so

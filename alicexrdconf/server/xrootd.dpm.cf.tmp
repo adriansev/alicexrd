@@ -16,7 +16,6 @@ all.trace all debug
 
 # xrootd internal monitoring
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
-## xrd.report localhost:1234 every 2m -client
 
 # Avoid hard limit at 30 OLBDs
 if exec olbd
