@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 ## execute the script NOT source
 if [ x$0 = "xbash" ]; then
@@ -18,6 +18,8 @@ SETCOLOR_NORMAL="echo -en \\033[0;39m"
 ## checking prereqisites
 [ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit -1; }
 [ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit -1; }
+[ ! -e "/usr/bin/curl" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit -1; }
+
 
 # set arch for lib definition
 [ `/bin/arch` == "x86_64" ] && export BITARCH=64
@@ -39,38 +41,24 @@ export XRDSHDIR=`dirname $SOURCE`
 # make sure xrd.sh is executable by user and user group
 chmod ug+x ${XRDSHDIR}/xrd.sh
 
-# location of configuration files; needs not be the same with xrd.sh location
-XRDCONFDIR=${XRDCONFDIR:-$XRDSHDIR/xrootd.conf/}
-export XRDCONFDIR
-
 # location of logs, admin, core dirs
 XRDRUNDIR=${XRDRUNDIR:-$XRDSHDIR/run/}
 export XRDRUNDIR
 
+# location of configuration files; needs not be the same with xrd.sh location
+XRDCONFDIR=${XRDCONFDIR:-$XRDSHDIR/xrootd.conf/}
+export XRDCONFDIR
+
 ## LOCATIONS AND INFORMATIONS
 export XRDCONF="$XRDCONFDIR/system.cnf"
-
-## READ system.cnf
 source ${XRDCONF}
 
 # ApMon files
 export apmonPidFile=${XRDRUNDIR}/admin/apmon.pid
-export apmonLogFile=${XRDRUNDIR}/logs/apmon.pid
-
-## Find information about site from ML
-TMP_SITEINFO="/tmp/site_info.txt"
-wget -q http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME} -O $TMP_SITEINFO
-
-export MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
-export MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
-
-export MANAGERHOST=`grep seioDaemons $TMP_SITEINFO | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }'`
-export LOCALPATHPFX=`grep seStoragePath $TMP_SITEINFO | awk -F": " '{ print $2 }'`
-
-rm -f ${TMP_SITEINFO}
+export apmonLogFile=${XRDRUNDIR}/logs/apmon.log
 
 USER=${USER:-$LOGNAME}
-if [ -z "$USER" ] ; then USER=`id -nu` ; fi
+[[ -z "$USER" ]] && USER=`id -nu`
 
 SCRIPTUSER=$USER
 
@@ -78,7 +66,7 @@ SCRIPTUSER=$USER
 XRDUSER=`stat -c %U $XRDSHDIR`
 
 ## if xrd.sh is started by root get the home of the designated xrd user
-if [ $USER = "root" ]; then
+if [[ $USER == "root" ]]; then
     USER=$XRDUSER
     XRDHOME=`su $XRDUSER  -c "/bin/echo \\\$HOME"`
     cd "$XRDHOME"
@@ -93,65 +81,9 @@ else
     XRDHOME=$HOME
 fi
 
-## what is my hostname
-if [ "x$myhost" = "x" ]; then
-    myhost=`hostname -f`
-fi
-
-if [ "x$myhost" = "x" ]; then
-    myhost=`hostname`
-fi
-
-if [ "x$myhost" = "x" ]; then
-    myhost=$HOST
-fi
-
-if [ "x$myhost" = "x" ]; then
-    echo "Cannot determine hostname. Aborting."
-    exit 1
-fi
-
-echo "The fully qualified hostname appears to be $myhost"
-
-## Network information and validity checking
-
-MYIP=`dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | sed 's/\"//g' | awk -F, '{print $1}'`
-ip_list=`/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}'`
-found_at=`expr index "$ip_list" "$MYIP"`
-
-[[ "$found_at" == "0" ]] && echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit -1;
-
-reverse=`host $MYIP | awk '{ print substr ($NF,1,length($NF)-1);}'`
-
-[ "$myhost" != "$reverse" ] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit -1; }
-
-#echo "host = "$myhost
-#echo "reverse = "$reverse
-
-##  What i am?
-# default role - server
-role="server";
-server="yes";
-nproc=1;
-
-# unless i am manager
-if [[ "x$myhost" == "x$MANAGERHOST" ]]
-then
-  role="manager";
-  manager="yes";
-  server="";
-  nproc=1;
-  if [[ "x$SERVERONREDIRECTOR" = "x1" ]] # i am am both add server role
-  then
-    role="all";
-    server="yes";
-    nproc=2;
-  fi
-fi
 
 
 ##########  FUNCTIONS   #############
-
 echo_success() {
   [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
   echo -n "[  "
@@ -185,49 +117,62 @@ echo_passed() {
   return 1
 }
 
-checkkeys() {
-    if [ "x$ACCLIB" != "x" ]; then
-      installkeys=no
-      [ ! -e $XRDHOME/.authz/xrootd/privkey.pem ] && installkeys=yes
-      [ ! -e $XRDHOME/.authz/xrootd/pubkey.pem ] && installkeys=yes
-      if [ x"$installkeys" = x"yes" ]; then
-        mkdir -p $XRDHOME/.authz/xrootd/
-        echo "Getting Keys and bootstrapping $XRDHOME/.authz/xrootd/TkAuthz.Authorization ..."
-        wget -t 10 http://alitorrent.cern.ch/src/xrd3/keys/pubkey.pem -O $XRDHOME/.authz/xrootd/pubkey.pem
-        wget -t 10 http://alitorrent.cern.ch/src/xrd3/keys/privkey.pem -O $XRDHOME/.authz/xrootd/privkey.pem
-        chmod 400 $XRDHOME/.authz/xrootd/privkey.pem
-        chmod 400 $XRDHOME/.authz/xrootd/pubkey.pem
-      fi
-      chown -R $XRDUSER $XRDHOME/.authz
-      echo "KEY VO:*       PRIVKEY:$XRDHOME/.authz/xrootd/privkey.pem PUBKEY:$XRDHOME/.authz/xrootd/pubkey.pem" > $XRDHOME/.authz/xrootd/TkAuthz.Authorization
-      chmod 600 $XRDHOME/.authz/xrootd/TkAuthz.Authorization
-      cat $XRDCONFDIR/authz.cnf | grep EXPORT >> $XRDHOME/.authz/xrootd/TkAuthz.Authorization
-      cat $XRDCONFDIR/authz.cnf | grep RULE >> $XRDHOME/.authz/xrootd/TkAuthz.Authorization
-    fi
-}
-
-addcron() {
-    rndname="/tmp/cron.$RANDOM.xrd.sh";
-    crontab -l | grep -v "xrd.sh" | grep -v "\#" > $rndname;
-    cat $XRDCONFDIR/crontab.xrootd >> $rndname;
-    crontab $rndname;
-#    crontab -l
-    rm -f $rndname;
-}
-
-removecron() {
-    rndname="/tmp/cron.$RANDOM.xrd.sh";
-    crontab -l | grep -v "xrd\.sh" | grep -v "\#|" | grep -v XRDCONF | grep -v XRDRUN > $rndname;
-    tabcontent=`cat $rndname`;
-    if [ x"$tabcontent" = x ]; then
-      crontab -r
-    else
-      crontab $rndname;
-      rm -f $rndname;
-    fi
-}
-
 createconf() {
+  ## Find information about site from ML
+  TMP_SITEINFO="/tmp/site_info.txt"
+  wget -q http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME} -O $TMP_SITEINFO
+
+  export MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
+  export MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
+
+  export MANAGERHOST=`grep seioDaemons $TMP_SITEINFO | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }'`
+  export LOCALPATHPFX=`grep seStoragePath $TMP_SITEINFO | awk -F": " '{ print $2 }'`
+
+  rm -f ${TMP_SITEINFO}
+
+  ## what is my hostname
+  [[ "x$myhost" == "x" ]] && myhost=`hostname -f`
+  [[ "x$myhost" == "x" ]] && myhost=`hostname`
+  [[ "x$myhost" == "x" ]] && myhost=$HOST
+
+  if [ "x$myhost" = "x" ]; then
+    echo "Cannot determine hostname. Aborting."
+    exit 1
+  fi
+
+  echo "The fully qualified hostname appears to be $myhost"
+
+  ## Network information and validity checking
+  MYIP=`dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | sed 's/\"//g' | awk -F, '{print $1}'`
+  ip_list=`/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}'`
+  found_at=`expr index "$ip_list" "$MYIP"`
+
+  [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
+
+  reverse=`host $MYIP | awk '{ print substr ($NF,1,length($NF)-1);}'`
+
+  [[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
+
+  #echo "host = "$myhost
+  #echo "reverse = "$reverse
+
+  ##  What i am?
+  # default role - server
+  role="server"; server="yes"; nproc=1;
+
+  # unless i am manager
+  if [[ "x$myhost" == "x$MANAGERHOST" ]]; then
+    role="manager";
+    manager="yes";
+    server="";
+    if [[ "x$SERVERONREDIRECTOR" = "x1" ]]; then # i am am both add server role
+      role="all";
+      server="yes";
+      nproc=2;
+    fi
+  fi
+
+############################################################################################
   export osscachetmp=`echo -e $OSSCACHE`;
 
   # Replace XRDSHDIR for service starting
@@ -295,6 +240,83 @@ createconf() {
   rm -f `find ${XRDCONFDIR}/ -name "*.template"`
   cd -;
 }
+
+## create TkAuthz.Authorization file; take as argument the place where are the public keys
+create_tkauthz() {
+  local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
+
+  echo "KEY VO:*       PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem" > ${PRIV_KEY_DIR}/TkAuthz.Authorization
+  chmod 600 ${PRIV_KEY_DIR}/TkAuthz.Authorization
+
+  #########################################
+  # the root of the exported namespace you allow to export on your disk servers
+  # just add all directories you want to allow
+  # this is only taken into account if you use the TokenAuthzOfs OFS
+  # Of course, the localroot prefix here should be omitted
+  # If the cluster is (correctly!) configured with the right
+  # localroot option, allowing / is just fine and 100% secure. That should be
+  # considered normal.
+  echo 'EXPORT PATH:/ VO:*     ACCESS:ALLOW CERT:*' >> ${PRIV_KEY_DIR}/TkAuthz.Authorization
+
+  # rules, which define which paths need authorization; leave it like that, that is safe
+  echo 'RULE PATH:/ AUTHZ:delete|write|write-once| NOAUTHZ:read| VO:*| CERT:*' >> ${PRIV_KEY_DIR}/TkAuthz.Authorization
+}
+
+checkkeys() {
+    KEYS_REPO="http://alitorrent.cern.ch/src/xrd3/keys/"
+
+    authz_dir1="/etc/grid-security/xrootd/"
+    authz_dir2="${XRDHOME}/.globus/xrootd/"
+    authz_dir3="${XRDHOME}/.authz/xrootd/"
+
+    authz_dir=${authz_dir3} # default dir
+
+    if [ "x$ACCLIB" != "x" ]; then
+      installkeys=yes ## default action is installing keys in default dir
+
+      for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
+        [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && installkeys=no && break
+      done
+
+      if [[ "$installkeys" == "yes" ]]; then
+        [[ `id -u` == "0" ]] && authz_dir=${authz_dir1}
+        mkdir -p ${authz_dir}
+        echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
+
+        cd ${authz_dir}
+        curl -fsSL -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
+        chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
+
+        create_tkauthz ${authz_dir}
+
+        chown -R $XRDUSER $XRDHOME/.authz
+      fi
+
+    cd ~
+    fi
+}
+
+addcron() {
+    rndname="/tmp/cron.$RANDOM.xrd.sh";
+    crontab -l | grep -v "xrd.sh" | grep -v "\#" > $rndname;
+    cat $XRDCONFDIR/crontab.xrootd >> $rndname;
+    crontab $rndname;
+#    crontab -l
+    rm -f $rndname;
+}
+
+removecron() {
+    rndname="/tmp/cron.$RANDOM.xrd.sh";
+    crontab -l | grep -v "xrd\.sh" | grep -v "\#|" | grep -v XRDCONF | grep -v XRDRUN > $rndname;
+    tabcontent=`cat $rndname`;
+    if [ x"$tabcontent" = x ]; then
+      crontab -r
+    else
+      crontab $rndname;
+      rm -f $rndname;
+    fi
+}
+
 
 bootstrap() {
   mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
@@ -537,6 +559,9 @@ elif [ "x$1" = "x-logs" ]; then  ## handlelogs
 elif [ "x$1" = "x-conf" ]; then  ## create configuration
     createconf
 
+elif [ "x$1" = "x-getkeys" ]; then  ## create configuration
+    checkkeys
+
 else
     echo "usage: xrd.sh [-f] [-c] [-k]";
     echo " [-f] force restart";
@@ -544,5 +569,6 @@ else
     echo " [-k] kill running processes";
     echo " [-logs] manage the logs";
     echo " [-conf] just (re)create configuration";
+    echo " [-getkeys] just get keys";
 fi
 
