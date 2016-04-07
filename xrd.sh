@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 ## execute the script NOT source
 if [ x$0 = "xbash" ]; then
@@ -81,8 +81,6 @@ else
     XRDHOME=$HOME
 fi
 
-
-
 ##########  FUNCTIONS   #############
 echo_success() {
   [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
@@ -95,6 +93,7 @@ echo_success() {
   return 0
 }
 
+######################################
 echo_failure() {
   [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
   echo -n "[  "
@@ -106,6 +105,7 @@ echo_failure() {
   return 0
 }
 
+######################################
 echo_passed() {
   [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
   echo -n "["
@@ -117,13 +117,14 @@ echo_passed() {
   return 1
 }
 
+######################################
 createconf() {
   ## Find information about site from ML
-  TMP_SITEINFO="/tmp/site_info.txt"
-  wget -q http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME} -O $TMP_SITEINFO
-
   export MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
   export MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
+
+  local TMP_SITEINFO; TMP_SITEINFO="/tmp/site_info.txt"
+  wget -q http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME} -O $TMP_SITEINFO
 
   export MANAGERHOST=`grep seioDaemons $TMP_SITEINFO | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }'`
   export LOCALPATHPFX=`grep seStoragePath $TMP_SITEINFO | awk -F": " '{ print $2 }'`
@@ -145,12 +146,11 @@ createconf() {
   ## Network information and validity checking
   MYIP=`dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | sed 's/\"//g' | awk -F, '{print $1}'`
   ip_list=`/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}'`
-  found_at=`expr index "$ip_list" "$MYIP"`
 
+  found_at=`expr index "$ip_list" "$MYIP"`
   [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
 
   reverse=`host $MYIP | awk '{ print substr ($NF,1,length($NF)-1);}'`
-
   [[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
 
   #echo "host = "$myhost
@@ -172,7 +172,12 @@ createconf() {
     fi
   fi
 
-############################################################################################
+  export role
+  export manager
+  export server
+  export nproc
+
+  ###################
   export osscachetmp=`echo -e $OSSCACHE`;
 
   # Replace XRDSHDIR for service starting
@@ -262,6 +267,7 @@ create_tkauthz() {
   echo 'RULE PATH:/ AUTHZ:delete|write|write-once| NOAUTHZ:read| VO:*| CERT:*' >> ${PRIV_KEY_DIR}/TkAuthz.Authorization
 }
 
+######################################
 checkkeys() {
     KEYS_REPO="http://alitorrent.cern.ch/src/xrd3/keys/"
 
@@ -296,6 +302,7 @@ checkkeys() {
     fi
 }
 
+######################################
 addcron() {
     rndname="/tmp/cron.$RANDOM.xrd.sh";
     crontab -l | grep -v "xrd.sh" | grep -v "\#" > $rndname;
@@ -305,6 +312,7 @@ addcron() {
     rm -f $rndname;
 }
 
+######################################
 removecron() {
     rndname="/tmp/cron.$RANDOM.xrd.sh";
     crontab -l | grep -v "xrd\.sh" | grep -v "\#|" | grep -v XRDCONF | grep -v XRDRUN > $rndname;
@@ -317,13 +325,14 @@ removecron() {
     fi
 }
 
-
+######################################
 bootstrap() {
+  createconf
   mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
   [[ "x$role" == "xserver" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
-  createconf
 }
 
+######################################
 getSrvToMon() {
     srvToMon=""
     if [  "x$SE_NAME" != "x" ] ; then se="${SE_NAME}_" ; fi
@@ -336,12 +345,14 @@ getSrvToMon() {
     done
 }
 
+######################################
 servMon() {
    if [ "x$SE_NAME" != "x" ] ; then se="${SE_NAME}_" ; fi
    startUp /usr/sbin/servMon.sh -p ${apmonPidFile} ${se}xrootd $*
    echo
 }
 
+######################################
 startMon() {
     if [ "x$MONALISA_HOST" = "x" ] ; then return ; fi
     getSrvToMon
@@ -351,6 +362,7 @@ startMon() {
     echo
 }
 
+######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
 
@@ -360,7 +372,7 @@ killXRD() {
     pkill -9 -u $USER xrootd
     pkill -9 -u $USER cmsd
     pkill -f -u $USER XrdOlbMonPerf
-    pkill -f -u $USER mpxstats 
+    pkill -f -u $USER mpxstats
 
     echo_passed;
     echo
@@ -369,16 +381,13 @@ killXRD() {
     servMon -k
 }
 
+######################################
 execEnvironment() {
     mkdir -p ${XRDRUNDIR}/logs/
     mkdir -p ${XRDRUNDIR}/core/${USER}_$1
     mkdir -p ${XRDRUNDIR}/admin/
 
     cd ${XRDRUNDIR}/core/${USER}_$1
-
-#    echo "XRDSHDIR = "$XRDSHDIR
-#    echo "XRDCONFDIR = "$XRDCONFDIR
-#    echo "XRDRUNDIR = "$XRDRUNDIR
 
 #    if [ $USER = "root" ]; then
 #       EXECENV="ulimit -n ${XRDMAXFD};ulimit -c unlimited;"
@@ -399,6 +408,7 @@ execEnvironment() {
     chmod -R 755 ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
 }
 
+######################################
 startUp() {
     if [ $SCRIPTUSER = "root" ]; then
       cd "$XRDSHDIR"
@@ -415,6 +425,7 @@ startUp() {
     fi
 }
 
+######################################
 handlelogs() {
   cd ${XRDRUNDIR}
   LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
@@ -435,6 +446,7 @@ handlelogs() {
   mv -f ${XRDRUNDIR}/logs/*/*.bz2 ${XRDRUNDIR}/logsbackup/ &> /dev/null
 }
 
+######################################
 restartXRD() {
     echo restartXRD
     killXRD
@@ -464,19 +476,19 @@ restartXRD() {
     startMon
 }
 
+######################################
 checkstate()
 {
-sleep 1
 echo "******************************************"
 date
 echo "******************************************"
 
-nxrd=`pgrep -u $USER xrootd | wc -l | awk '{print $1}'`;
-ncms=`pgrep -u $USER cmsd   | wc -l | awk '{print $1}'`;
+nxrd=`pgrep -u $USER xrootd | wc -l`;
+ncms=`pgrep -u $USER cmsd   | wc -l`;
 
 returnval=0
 
-if [ $nxrd -eq $nproc ]; then
+if [ "$nxrd" -eq "$nproc" ]; then
   echo -n "xrootd:";
   echo_success;
   echo
@@ -487,7 +499,7 @@ else
   returnval=1;
 fi
 
-if [ $ncms -eq $nproc ]; then
+if [ "$ncms" -eq "$nproc" ]; then
   echo -n "cmsd :";
   echo_success;
   echo
@@ -515,16 +527,19 @@ fi
 exit $returnval
 }
 
+######################
+##    Main logic    ##
+######################
 if [ "x$1" = "x-c" ]; then  ## check and restart if not running
     removecron
     checkkeys
     bootstrap
     addcron
 
-    nxrd=`pgrep -u $USER xrootd | wc -l | awk '{print $1}'`;
-    ncms=`pgrep -u $USER cmsd   | wc -l | awk '{print $1}'`;
+    local nxrd; nxrd=`pgrep -u $USER xrootd | wc -l`;
+    local ncms; ncms =`pgrep -u $USER cmsd   | wc -l`;
 
-    if [ $nxrd -lt $nproc -o $ncms -lt $nproc ]; then
+    if [ "$nxrd" -lt "$nproc" -o "$ncms" -lt "$nproc" ]; then
       date
       echo "------------------------------------------"
       ps
@@ -559,11 +574,12 @@ elif [ "x$1" = "x-logs" ]; then  ## handlelogs
 elif [ "x$1" = "x-conf" ]; then  ## create configuration
     createconf
 
-elif [ "x$1" = "x-getkeys" ]; then  ## create configuration
+elif [ "x$1" = "x-getkeys" ]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
 
 else
-    echo "usage: xrd.sh [-f] [-c] [-k]";
+    echo "usage: xrd.sh arg";
+    echo "where argument is _one_ of :"
     echo " [-f] force restart";
     echo " [-c] check and restart if not running";
     echo " [-k] kill running processes";
