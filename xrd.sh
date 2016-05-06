@@ -474,6 +474,7 @@ restartXRD() {
       )
     fi
     startMon
+    sleep 1 ## need delay for starMon
 }
 
 ######################################
@@ -511,7 +512,8 @@ else
 fi
 
 if [ -n "$MONALISA_HOST" ] ; then
-  lines=`find $apmonPidFile* 2>/dev/null | wc -l`
+  lines=`find ${apmonPidFile}* 2>/dev/null | wc -l`
+
   if [ "$lines" -gt 0 ] ; then
     echo -n "apmon:";
     echo_success;
@@ -536,9 +538,11 @@ if [ "x$1" = "x-c" ]; then  ## check and restart if not running
     bootstrap
     addcron
 
+    ## check the number of xrootd and cmsd processes
     nxrd=`pgrep -u $USER xrootd | wc -l`;
     ncms=`pgrep -u $USER cmsd   | wc -l`;
 
+    ## if their number is lower than it should (number given by the roles)
     if [ "$nxrd" -lt "$nproc" -o "$ncms" -lt "$nproc" ]; then
       date
       echo "------------------------------------------"
@@ -547,12 +551,12 @@ if [ "x$1" = "x-c" ]; then  ## check and restart if not running
       echo "Starting all .... (only $nxrd xrootds $ncms cmsds)"
       restartXRD
       echo "------------------------------------------"
-    else
-      [ "x$MONALISA_HOST" != "x" ] && servMon
     fi
+
+    ## we start servMon anyway
+    [ "x$MONALISA_HOST" != "x" ] && servMon
     handlelogs
     checkstate
-
 elif [ "x$1" = "x-f" ]; then   ## force restart
     removecron
     checkkeys
@@ -561,22 +565,20 @@ elif [ "x$1" = "x-f" ]; then   ## force restart
     date
     echo "(Re-)Starting ...."
     restartXRD
-    checkstate
 
+    ## we start servMon anyway
+    [ "x$MONALISA_HOST" != "x" ] && servMon
+    checkstate
 elif [ "x$1" = "x-k" ]; then  ## kill running processes
     removecron
     killXRD
     checkstate
-
 elif [ "x$1" = "x-logs" ]; then  ## handlelogs
     handlelogs
-
 elif [ "x$1" = "x-conf" ]; then  ## create configuration
     createconf
-
 elif [ "x$1" = "x-getkeys" ]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
-
 else
     echo "usage: xrd.sh arg";
     echo "where argument is _one_ of :"
