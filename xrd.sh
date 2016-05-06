@@ -536,8 +536,8 @@ if [ "x$1" = "x-c" ]; then  ## check and restart if not running
     bootstrap
     addcron
 
-    local nxrd; nxrd=`pgrep -u $USER xrootd | wc -l`;
-    local ncms; ncms =`pgrep -u $USER cmsd   | wc -l`;
+    nxrd=`pgrep -u $USER xrootd | wc -l`;
+    ncms=`pgrep -u $USER cmsd   | wc -l`;
 
     if [ "$nxrd" -lt "$nproc" -o "$ncms" -lt "$nproc" ]; then
       date
