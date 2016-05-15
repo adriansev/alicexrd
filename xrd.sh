@@ -434,7 +434,7 @@ handlelogs() {
   todaynow=`date +%Y%m%d`
 
   cd ${XRDRUNDIR}/logs
-  not_compressed=`find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -print`
+  not_compressed=`find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print`
 
   if [[ ! -f $LOCK ]]; then
     touch $LOCK
