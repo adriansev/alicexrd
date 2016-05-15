@@ -5,6 +5,9 @@ all.export / nolock r/w nocheck norcreate
 # http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250505
 all.role server
 
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc448774993
+all.sitename SITENAME
+
 # Specify the manager cmsd location. http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250501
 all.manager MANAGERHOST CMSDMANAGERPORT
 
