@@ -40,8 +40,8 @@ export XRDMAXFD=65000
 #export SYSTEM=DPM
 
 # define the DPM/DPNS_HOST name
-#export DPM_HOST=...
-#export DPNS_HOST=...
+#export DPM_HOST=
+#export DPNS_HOST=
 
 # this is needed to be able to connect with the root identity
 #export CSEC_MECH=ID
@@ -56,9 +56,9 @@ export SYSTEM=XROOTD
 # -otherwise the default port numbers are used
 #########################################
 export XRDMANAGERPORT=1094
-export XRDSERVERPORT=1094
-
 export CMSDMANAGERPORT=3122
+
+export XRDSERVERPORT=1094
 export CMSDSERVERPORT=3122
 
 if [ "x$SERVERONREDIRECTOR" = "x1" ]; then
