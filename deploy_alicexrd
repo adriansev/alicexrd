@@ -4,10 +4,10 @@ echo "This script will deploy ALICE XRootD settings in current user"
 echo "All previous template configs will be overwritten"
 sleep 10
 
-CURL='curl -fkLsSO -o'
+CURL='curl -fkLsS -o'
 
 # create directory for logs and other files
-mkdir -p ~/alicexrdrun
+mkdir -p ~/alicexrdrun ~/alicexrd ~/alicexrdconf ~/alicexrdconf/manager ~/alicexrdconf/server
 
 # Script for starting services
 $CURL ~/alicexrd/xrd.sh               https://raw.githubusercontent.com/adriansev/alicexrd/master/xrd.sh && chmod +x ~/alicexrd/xrd.sh
