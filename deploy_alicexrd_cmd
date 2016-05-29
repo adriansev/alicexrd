@@ -1,0 +1,2 @@
+## command to be run on the server where ALICE XRootd services will be run
+bash <(curl -fsSLk https://raw.githubusercontent.com/adriansev/alicexrd/master/deploy_alicexrd)
