@@ -489,7 +489,7 @@ ncms=`pgrep -u $USER cmsd   | wc -l`;
 
 returnval=0
 
-if [ "$nxrd" -eq "$nproc" ]; then
+if [ $nxrd -eq $nproc ]; then
   echo -n "xrootd:";
   echo_success;
   echo
@@ -500,7 +500,7 @@ else
   returnval=1;
 fi
 
-if [ "$ncms" -eq "$nproc" ]; then
+if [ $ncms -eq $nproc ]; then
   echo -n "cmsd :";
   echo_success;
   echo
