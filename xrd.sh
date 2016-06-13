@@ -1,10 +1,7 @@
 #!/bin/bash
 
 ## execute the script NOT source
-if [ x$0 = "xbash" ]; then
-  echo "Error:  Please don't source me - just execute me!";
-  exit -1;
-fi;
+[[ "$0" == "bash" ]] && echo "Error:  Please don't source me - just execute me!" && exit 1;
 
 ######################################
 BOOTUP=color
@@ -16,13 +13,12 @@ SETCOLOR_WARNING="echo -en \\033[1;33m"
 SETCOLOR_NORMAL="echo -en \\033[0;39m"
 
 ## checking prereqisites
-[ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit -1; }
-[ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit -1; }
-[ ! -e "/usr/bin/curl" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit -1; }
-
+[ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit 1; }
+[ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
+[ ! -e "/usr/bin/curl" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
 
 # set arch for lib definition
-[ `/bin/arch` == "x86_64" ] && export BITARCH=64
+[[ "`/bin/arch`" == "x86_64" ]] && export BITARCH=64
 
 ## find the location of xrd.sh script
 SOURCE="${BASH_SOURCE[0]}"
@@ -66,7 +62,7 @@ SCRIPTUSER=$USER
 XRDUSER=`stat -c %U $XRDSHDIR`
 
 ## if xrd.sh is started by root get the home of the designated xrd user
-if [[ $USER == "root" ]]; then
+if [[ "$USER" == "root" ]]; then
     USER=$XRDUSER
     XRDHOME=`su $XRDUSER  -c "/bin/echo \\\$HOME"`
     cd "$XRDHOME"
@@ -118,6 +114,23 @@ echo_passed() {
 }
 
 ######################################
+startUp() {
+    if [[ "$SCRIPTUSER" == "root" ]]; then
+      cd "$XRDSHDIR"
+      su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
+      echo_passed
+      #	test $? -eq 0 && echo_success || echo_failure
+      echo
+    else
+      ulimit -c unlimited
+      $*
+      echo_passed
+      #	test $? -eq 0 && echo_success || echo_failure
+      echo
+    fi
+}
+
+######################################
 createconf() {
   ## Find information about site from ML
   export MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
@@ -132,14 +145,11 @@ createconf() {
   rm -f ${TMP_SITEINFO}
 
   ## what is my hostname
-  [[ "x$myhost" == "x" ]] && myhost=`hostname -f`
-  [[ "x$myhost" == "x" ]] && myhost=`hostname`
-  [[ "x$myhost" == "x" ]] && myhost=$HOST
+  [[ -z "$myhost" ]] && myhost=`hostname -f`
+  [[ -z "$myhost" ]] && myhost=`hostname`
+  [[ -z "$myhost" ]] && myhost=$HOST
 
-  if [ "x$myhost" = "x" ]; then
-    echo "Cannot determine hostname. Aborting."
-    exit 1
-  fi
+  [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
 
   echo "The fully qualified hostname appears to be $myhost"
 
@@ -207,21 +217,21 @@ createconf() {
     #	fi
 
     # Monalisa stuff which has to be commented out in some cases
-    if [ "x$MONALISA_HOST" != "x" ] ; then
+    if [[ -n "$MONALISA_HOST" ]] ; then
       perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${XRDCONFDIR}/$newname
     else
       perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${XRDCONFDIR}/$newname
     fi
 
     # XrdAcc stuff which has to be commented out in some cases
-    if [ "x$ACCLIB" != "x" ] ; then
+    if [[ -n "$ACCLIB" ]] ; then
       perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${XRDCONFDIR}/$newname
     else
       perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${XRDCONFDIR}/$newname
     fi
 
     # Xrdn2n stuff which has to be commented out in some cases
-    if [ -z "$LOCALPATHPFX" ] ; then
+    if [[ -z "$LOCALPATHPFX" ]] ; then
       perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${XRDCONFDIR}/$newname
     fi
 
@@ -232,14 +242,16 @@ createconf() {
   ( /bin/echo -e "\nXRDCONFDIR=${XRDCONFDIR} \nXRDRUNDIR=${XRDRUNDIR}\n" && cat crontab.xrootd ) > crontab.xrootd2
   mv -f crontab.xrootd2 crontab.xrootd
 
-  if [ ${SYSTEM} = "XROOTD" ]; then
+  if [[ ${SYSTEM} == "XROOTD" ]]; then
     unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
     unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
-  elif [ ${SYSTEM} = "DPM" ]; then
+  elif [[ ${SYSTEM} == "DPM" ]]; then
     unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; ln -s ${XRDCONFDIR}/server/xrootd.dpm.cf  ${XRDCONFDIR}/server/xrootd.cf;
     unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; ln -s ${XRDCONFDIR}/manager/xrootd.dpm.cf ${XRDCONFDIR}/manager/xrootd.cf;
 
-    if [ -z "$DPM_HOST" ]; then echo -e "\n\n##########################################################################\nWarning: you should define DPM_HOST in the environment of user $USER if you want to run with DPM!!!\n##########################################################################\n";fi
+    if [[ -z "$DPM_HOST" ]]; then
+      echo -e "\n\n##########################################################################\nWarning: you should define DPM_HOST in the environment of user $USER if you want to run with DPM!!!\n##########################################################################\n";
+    fi
   fi;
 
   rm -f `find ${XRDCONFDIR}/ -name "*.template"`
@@ -277,7 +289,7 @@ checkkeys() {
 
     authz_dir=${authz_dir3} # default dir
 
-    if [ "x$ACCLIB" != "x" ]; then
+    if [[ -n "$ACCLIB" ]]; then
       installkeys=yes ## default action is installing keys in default dir
 
       for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
@@ -329,32 +341,34 @@ removecron() {
 bootstrap() {
   createconf
   mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
-  [[ "x$role" == "xserver" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
+  [[ "${role}" == "server" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
 }
 
 ######################################
 getSrvToMon() {
-    srvToMon=""
-    if [  "x$SE_NAME" != "x" ] ; then se="${SE_NAME}_" ; fi
+  srvToMon=""
+  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_"
 
-    for typ in manager server ; do
-        for srv in xrootd cmsd ; do
-            pid=`pgrep -f -U $USER "$srv .*$typ" | head -1`
-            if [ "x$pid" != "x" ] ; then srvToMon="$srvToMon ${se}${typ}_${srv} $pid" ; fi
-        done
+  for typ in manager server ; do
+    for srv in xrootd cmsd ; do
+      pid=`pgrep -f -U $USER "$srv .*$typ" | head -1`
+      [[ -n "${pid}" ]] && srvToMon="$srvToMon ${se}${typ}_${srv} $pid"
     done
+  done
 }
 
 ######################################
 servMon() {
-   if [ "x$SE_NAME" != "x" ] ; then se="${SE_NAME}_" ; fi
-   startUp /usr/sbin/servMon.sh -p ${apmonPidFile} ${se}xrootd $*
-   echo
+  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_"
+
+  startUp /usr/sbin/servMon.sh -p ${apmonPidFile} ${se}xrootd $*
+  echo
 }
 
 ######################################
 startMon() {
-    if [ "x$MONALISA_HOST" = "x" ] ; then return ; fi
+    [[ -z "${MONALISA_HOST}" ]] && return
+
     getSrvToMon
     echo -n "Starting ApMon [$srvToMon] ..."
     servMon -f $srvToMon
@@ -399,7 +413,7 @@ execEnvironment() {
     ulimit -n ${XRDMAXFD}
 
     fdmax=`ulimit -n`
-    if [ $fdmax -lt 65000 ]; then
+    if (( fdmax < 65000 )) ; then
       echo "Fatal: This machine does not allow more than $fdmax file descriptors. At least 65000 are needed for serious operation - abort"
       exit -1
     fi
@@ -408,22 +422,6 @@ execEnvironment() {
     chmod -R 755 ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
 }
 
-######################################
-startUp() {
-    if [ $SCRIPTUSER = "root" ]; then
-      cd "$XRDSHDIR"
-      su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
-      echo_passed
-      #	test $? -eq 0 && echo_success || echo_failure
-      echo
-    else
-      ulimit -c unlimited
-      $*
-      echo_passed
-      #	test $? -eq 0 && echo_success || echo_failure
-      echo
-    fi
-}
 
 ######################################
 handlelogs() {
@@ -451,7 +449,7 @@ restartXRD() {
     echo restartXRD
     killXRD
 
-    if [ "x$manager" = "xyes" ]; then
+    if [[ "$manager" == "yes" ]]; then
       (
       execEnvironment manager || exit
 
@@ -463,7 +461,7 @@ restartXRD() {
       )
     fi
 
-    if [ "x$server" = "xyes" ]; then
+    if [[ "$server" == "yes" ]]; then
       (
       execEnvironment server || exit
 
@@ -489,7 +487,7 @@ ncms=`pgrep -u $USER cmsd   | wc -l`;
 
 returnval=0
 
-if [ "$nxrd" -eq "$nproc" ]; then
+if (( nxrd == nproc )); then
   echo -n "xrootd:";
   echo_success;
   echo
@@ -500,7 +498,7 @@ else
   returnval=1;
 fi
 
-if [ "$ncms" -eq "$nproc" ]; then
+if (( ncms == nproc )) ; then
   echo -n "cmsd :";
   echo_success;
   echo
@@ -511,10 +509,10 @@ else
   returnval=1;
 fi
 
-if [ -n "$MONALISA_HOST" ] ; then
+if [[ -n "${MONALISA_HOST}" ]] ; then
   lines=`find ${apmonPidFile}* 2>/dev/null | wc -l`
 
-  if [ "$lines" -gt 0 ] ; then
+  if (( lines > 0 )) ; then
     echo -n "apmon:";
     echo_success;
     echo
@@ -532,7 +530,7 @@ exit $returnval
 ######################
 ##    Main logic    ##
 ######################
-if [ "x$1" = "x-c" ]; then  ## check and restart if not running
+if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     removecron
     checkkeys
     bootstrap
@@ -543,7 +541,7 @@ if [ "x$1" = "x-c" ]; then  ## check and restart if not running
     ncms=`pgrep -u $USER cmsd   | wc -l`;
 
     ## if their number is lower than it should (number given by the roles)
-    if [ "$nxrd" -lt "$nproc" -o "$ncms" -lt "$nproc" ]; then
+    if (( (nxrd < nproc) || (ncms < nproc) )) ; then
       date
       echo "------------------------------------------"
       ps
@@ -554,10 +552,10 @@ if [ "x$1" = "x-c" ]; then  ## check and restart if not running
     fi
 
     ## we start servMon anyway
-    [ "x$MONALISA_HOST" != "x" ] && servMon
+    [[ -n "$MONALISA_HOST" ]] && servMon
     handlelogs
     checkstate
-elif [ "x$1" = "x-f" ]; then   ## force restart
+elif [[ "$1" == "-f" ]]; then   ## force restart
     removecron
     checkkeys
     bootstrap
@@ -567,17 +565,17 @@ elif [ "x$1" = "x-f" ]; then   ## force restart
     restartXRD
 
     ## we start servMon anyway
-    [ "x$MONALISA_HOST" != "x" ] && servMon
+    [[ -n "$MONALISA_HOST" ]] && servMon
     checkstate
-elif [ "x$1" = "x-k" ]; then  ## kill running processes
+elif [[ "$1" == "-k" ]]; then  ## kill running processes
     removecron
     killXRD
     checkstate
-elif [ "x$1" = "x-logs" ]; then  ## handlelogs
+elif [[ "$1" == "-logs" ]]; then  ## handlelogs
     handlelogs
-elif [ "x$1" = "x-conf" ]; then  ## create configuration
+elif [[ "$1" == "-conf" ]]; then  ## create configuration
     createconf
-elif [ "x$1" = "x-getkeys" ]; then  ## download keys and create TkAuthz.Authorization file
+elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
 else
     echo "usage: xrd.sh arg";
