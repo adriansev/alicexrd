@@ -555,6 +555,8 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     [[ -n "$MONALISA_HOST" ]] && servMon
     handlelogs
     checkstate
+elif [[ "$1" == "-check" ]]; then
+    checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
     removecron
     checkkeys
