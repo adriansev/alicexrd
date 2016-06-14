@@ -556,6 +556,7 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     handlelogs
     checkstate
 elif [[ "$1" == "-check" ]]; then
+    bootstrap
     checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
     removecron
