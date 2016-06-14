@@ -530,7 +530,9 @@ exit $returnval
 ######################
 ##    Main logic    ##
 ######################
-if [[ "$1" == "-c" ]]; then  ## check and restart if not running
+if [[ "x$1" = "x-s" ]]; then  ## checkstate
+    checkstate
+elif [[ "x$1" = "x-c" ]]; then  ## check and restart if not running
     removecron
     checkkeys
     bootstrap
@@ -581,6 +583,7 @@ else
     echo "usage: xrd.sh arg";
     echo "where argument is _one_ of :"
     echo " [-f] force restart";
+    echo " [-s] check state";
     echo " [-c] check and restart if not running";
     echo " [-k] kill running processes";
     echo " [-logs] manage the logs";
