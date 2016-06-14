@@ -48,24 +48,32 @@ reload() {
 case "$1" in
 start)
         start
+		RETVAL=$?
         ;;
 stop)
         stop
+		RETVAL=$?
         ;;
 reload|restart)
         restart
+		RETVAL=$?
         ;;
 condrestart)
         if [ -f /var/lock/subsys/xrootd ]; then
             restart
+			RETVAL=$?
+		else
+			RETVAL=0
         fi
         ;;
 status)
+		XRDSHDIR/xrd.sh -s
+		RETVAL=$?
         ;;
 *)
-        echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+		echo "Usage: $0 {start|stop|restart|condrestart|status}"
         exit 1
 esac
 
-exit $?
+
 exit $RETVAL
