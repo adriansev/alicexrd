@@ -131,16 +131,16 @@ startUp() {
 }
 
 ######################################
-createconf() {
+serverinfo() {
   ## Find information about site from ML
-  export MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
-  export MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
+  MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
+  MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
 
   local TMP_SITEINFO; TMP_SITEINFO="/tmp/site_info.txt"
   wget -q http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME} -O $TMP_SITEINFO
 
-  export MANAGERHOST=`grep seioDaemons $TMP_SITEINFO | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }'`
-  export LOCALPATHPFX=`grep seStoragePath $TMP_SITEINFO | awk -F": " '{ print $2 }'`
+  MANAGERHOST=`grep seioDaemons $TMP_SITEINFO | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }'`
+  LOCALPATHPFX=`grep seStoragePath $TMP_SITEINFO | awk -F": " '{ print $2 }'`
 
   rm -f ${TMP_SITEINFO}
 
@@ -182,10 +182,18 @@ createconf() {
     fi
   fi
 
+  export MONALISA_HOST
+  export MANAGERHOST
+  export LOCALPATHPFX
   export role
   export manager
   export server
   export nproc
+}
+
+######################################
+createconf() {
+  serverinfo
 
   ###################
   export osscachetmp=`echo -e $OSSCACHE`;
@@ -556,7 +564,7 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     handlelogs
     checkstate
 elif [[ "$1" == "-check" ]]; then
-    bootstrap
+    serverinfo
     checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
     removecron
