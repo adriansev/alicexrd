@@ -131,7 +131,7 @@ startUp() {
 }
 
 ######################################
-createconf() {
+createconf_pre() {
   ## Find information about site from ML
   export MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
   export MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
@@ -186,7 +186,9 @@ createconf() {
   export manager
   export server
   export nproc
-
+}
+createconf () {
+  createconf_pre
   ###################
   export osscachetmp=`echo -e $OSSCACHE`;
 
@@ -413,7 +415,7 @@ execEnvironment() {
     ulimit -n ${XRDMAXFD}
 
     fdmax=`ulimit -n`
-    if (( fdmax < 65000 )) ; then
+    if [ "$fdmax" -lt "65000" ] ; then
       echo "Fatal: This machine does not allow more than $fdmax file descriptors. At least 65000 are needed for serious operation - abort"
       exit -1
     fi
@@ -487,7 +489,7 @@ ncms=`pgrep -u $USER cmsd   | wc -l`;
 
 returnval=0
 
-if (( nxrd == nproc )); then
+if [ "$nxrd" -eq "$nproc" ]; then
   echo -n "xrootd:";
   echo_success;
   echo
@@ -498,7 +500,7 @@ else
   returnval=1;
 fi
 
-if (( ncms == nproc )) ; then
+if [ "$ncms" -eq "$nproc" ] ; then
   echo -n "cmsd :";
   echo_success;
   echo
@@ -512,7 +514,7 @@ fi
 if [[ -n "${MONALISA_HOST}" ]] ; then
   lines=`find ${apmonPidFile}* 2>/dev/null | wc -l`
 
-  if (( lines > 0 )) ; then
+  if [ "$lines" -gt 0 ] ; then
     echo -n "apmon:";
     echo_success;
     echo
@@ -531,6 +533,7 @@ exit $returnval
 ##    Main logic    ##
 ######################
 if [[ "x$1" = "x-s" ]]; then  ## checkstate
+	createconf_pre
     checkstate
 elif [[ "x$1" = "x-c" ]]; then  ## check and restart if not running
     removecron
@@ -543,7 +546,7 @@ elif [[ "x$1" = "x-c" ]]; then  ## check and restart if not running
     ncms=`pgrep -u $USER cmsd   | wc -l`;
 
     ## if their number is lower than it should (number given by the roles)
-    if (( (nxrd < nproc) || (ncms < nproc) )) ; then
+    if [ "$nxrd" -lt "$nproc" ] || [ "$ncms" -lt "$nproc" ] ; then
       date
       echo "------------------------------------------"
       ps
