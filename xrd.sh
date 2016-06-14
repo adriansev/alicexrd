@@ -133,16 +133,13 @@ startUp() {
 ######################################
 serverinfo() {
   ## Find information about site from ML
-  MONALISA_HOST_INFO=`host $(curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}')`
-  MONALISA_HOST=`echo $MONALISA_HOST_INFO | awk '{ print substr ($NF,1,length($NF)-1);}'`
+  MONALISA_HOST_INFO=$( host $( curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}' ) )
+  MONALISA_HOST=$( echo "$MONALISA_HOST_INFO" | awk '{ print substr ($NF,1,length($NF)-1);}' )
 
-  local TMP_SITEINFO; TMP_SITEINFO="/tmp/site_info.txt"
-  wget -q http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME} -O $TMP_SITEINFO
+  se_info=$(curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
 
-  MANAGERHOST=`grep seioDaemons $TMP_SITEINFO | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }'`
-  LOCALPATHPFX=`grep seStoragePath $TMP_SITEINFO | awk -F": " '{ print $2 }'`
-
-  rm -f ${TMP_SITEINFO}
+  MANAGERHOST=$( echo "$se_info" | grep seioDaemons | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
+  LOCALPATHPFX=$( echo "$se_info" | grep seStoragePath | awk -F": " '{ print $2 }' )
 
   ## what is my hostname
   [[ -z "$myhost" ]] && myhost=`hostname -f`
