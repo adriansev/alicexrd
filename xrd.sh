@@ -605,7 +605,14 @@ fi
 }
 
 ## Allow loading functions as library
-[[ "${BASH_SOURCE[0]}" != "${0}" ]] && echo "Warning: using xrd.sh as library!" && return 0;
+#  Warns unless SKIPWARN_XRDSH_ASLIB is set
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]
+then
+    if [[ -z "${SKIPWARN_XRDSH_ASLIB}" ]]; then
+        echo "Warning: using xrd.sh as library!"
+    fi
+    return 0
+fi
 
 set_formatters
 check_prerequisites
