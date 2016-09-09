@@ -603,7 +603,7 @@ else
     echo " [-getkeys] just get keys";
     echo "";
     echo "Environment variables:";
-    echo "  SKIPWARN_XRDSH_ASLIB  do not warn xrd.sh is sourced"
+    echo "  XRDSH_NOWARN_ASLIB  do not warn xrd.sh is sourced"
 fi
 }
 
@@ -611,7 +611,7 @@ fi
 #  Warns unless SKIPWARN_XRDSH_ASLIB is set
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]
 then
-    if [[ -z "${SKIPWARN_XRDSH_ASLIB}" ]]; then
+    if [[ -z "${XRDSH_NOWARN_ASLIB}" ]]; then
         echo "Warning: using xrd.sh as library!"
     fi
     return 0
