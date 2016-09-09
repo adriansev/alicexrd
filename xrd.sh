@@ -10,7 +10,6 @@ SETCOLOR_FAILURE="echo -en \\033[1;31m"
 SETCOLOR_WARNING="echo -en \\033[1;33m"
 SETCOLOR_NORMAL="echo -en \\033[0;39m"
 }
-set_formatters
 
 ######################################
 check_prerequisites() {
@@ -18,7 +17,6 @@ check_prerequisites() {
 [ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
 [ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install wget.x86_64"; exit 1; }
 }
-check_prerequisites
 
 set_system() {
 # Define system settings
@@ -84,7 +82,6 @@ else
     XRDHOME=$HOME
 fi
 }
-set_system
 
 ##########  FUNCTIONS   #############
 echo_success() {
@@ -610,4 +607,7 @@ fi
 ## Allow loading functions as library
 [[ "$0" == "bash" ]] && echo "Warning: using xrd.sh as library!" && return 0;
 
+set_formatters
+check_prerequisites
+set_system
 xrdsh_main
