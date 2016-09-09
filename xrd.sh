@@ -601,6 +601,9 @@ else
     echo " [-logs] manage the logs";
     echo " [-conf] just (re)create configuration";
     echo " [-getkeys] just get keys";
+    echo "";
+    echo "Environment variables:";
+    echo "  SKIPWARN_XRDSH_ASLIB  do not warn xrd.sh is sourced"
 fi
 }
 
