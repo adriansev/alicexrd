@@ -605,7 +605,7 @@ fi
 }
 
 ## Allow loading functions as library
-[[ "$0" == "bash" ]] && echo "Warning: using xrd.sh as library!" && return 0;
+[[ "${BASH_SOURCE[0]}" != "${0}" ]] && echo "Warning: using xrd.sh as library!" && return 0;
 
 set_formatters
 check_prerequisites
