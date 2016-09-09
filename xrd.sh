@@ -1,8 +1,5 @@
 #!/bin/bash
 
-## execute the script NOT source
-[[ "$0" == "bash" ]] && echo "Error:  Please don't source me - just execute me!" && exit 1;
-
 ######################################
 set_formatters() {
 BOOTUP=color
@@ -609,4 +606,8 @@ else
     echo " [-getkeys] just get keys";
 fi
 }
+
+## Allow loading functions as library
+[[ "$0" == "bash" ]] && echo "Warning: using xrd.sh as library!" && return 0;
+
 xrdsh_main
