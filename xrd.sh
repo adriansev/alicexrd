@@ -1,9 +1,7 @@
 #!/bin/bash
 
-## execute the script NOT source
-[[ "$0" == "bash" ]] && echo "Error:  Please don't source me - just execute me!" && exit 1;
-
 ######################################
+set_formatters() {
 BOOTUP=color
 RES_COL=60
 MOVE_TO_COL="echo -en \\033[${RES_COL}G"
@@ -11,11 +9,18 @@ SETCOLOR_SUCCESS="echo -en \\033[1;32m"
 SETCOLOR_FAILURE="echo -en \\033[1;31m"
 SETCOLOR_WARNING="echo -en \\033[1;33m"
 SETCOLOR_NORMAL="echo -en \\033[0;39m"
+}
 
-## checking prereqisites
+######################################
+check_prerequisites() {
 [ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit 1; }
 [ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
-[ ! -e "/usr/bin/curl" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
+[ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install wget.x86_64"; exit 1; }
+}
+
+set_system() {
+# Define system settings
+# Find configs, dirs, xrduser, ...
 
 # set arch for lib definition
 [[ "`/bin/arch`" == "x86_64" ]] && export BITARCH=64
@@ -76,6 +81,7 @@ if [[ "$USER" == "root" ]]; then
 else
     XRDHOME=$HOME
 fi
+}
 
 ##########  FUNCTIONS   #############
 echo_success() {
@@ -535,6 +541,7 @@ exit $returnval
 ######################
 ##    Main logic    ##
 ######################
+xrdsh_main() {
 if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     removecron
     checkkeys
@@ -594,5 +601,23 @@ else
     echo " [-logs] manage the logs";
     echo " [-conf] just (re)create configuration";
     echo " [-getkeys] just get keys";
+    echo "";
+    echo "Environment variables:";
+    echo "  XRDSH_NOWARN_ASLIB  do not warn xrd.sh is sourced"
+fi
+}
+
+## Allow loading functions as library
+#  Warns unless SKIPWARN_XRDSH_ASLIB is set
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]
+then
+    if [[ -z "${XRDSH_NOWARN_ASLIB}" ]]; then
+        echo "Warning: using xrd.sh as library!"
+    fi
+    return 0
 fi
 
+set_formatters
+check_prerequisites
+set_system
+xrdsh_main
