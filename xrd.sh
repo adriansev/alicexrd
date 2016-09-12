@@ -620,4 +620,4 @@ fi
 set_formatters
 check_prerequisites
 set_system
-xrdsh_main
+xrdsh_main "$@"
