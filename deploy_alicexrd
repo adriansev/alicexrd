@@ -1,7 +1,10 @@
 #!/bin/bash
 
-echo "This script will deploy ALICE XRootD settings in current user"
+BRANCH=${1:-master}
+
+echo "This script will deploy ALICE XRootD settings for the current user"
 echo "All previous template configs will be overwritten"
+echo -ne "\nSpecify branch/tag; if not used default=master\n>>>>>   ${BRANCH}   <<<<<\n\n"
 echo "Press ctrl-c for interrupting; waiting 10 seconds :"
 
 for (( i=1 ; i<12 ; i++)) ; do sleep 1 ; echo -ne "." ; done
@@ -13,19 +16,19 @@ CURL='curl -fkLsS -o'
 mkdir -p ~/alicexrdrun ~/alicexrd ~/alicexrdconf ~/alicexrdconf/manager ~/alicexrdconf/server
 
 # Script for starting services
-$CURL ~/alicexrd/xrd.sh               https://raw.githubusercontent.com/adriansev/alicexrd/master/xrd.sh && chmod +x ~/alicexrd/xrd.sh
-$CURL ~/alicexrd/alicexrdservices.tmp https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdservices.tmp
+$CURL ~/alicexrd/xrd.sh               https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/xrd.sh && chmod +x ~/alicexrd/xrd.sh
+$CURL ~/alicexrd/alicexrdservices.tmp https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdservices.tmp
 
 # Main configurations
-$CURL ~/alicexrdconf/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/system.cnf_CHANGEME
-$CURL ~/alicexrdconf/crontab.xrootd.tmp   https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/crontab.xrootd.tmp
-$CURL ~/alicexrdconf/authz.cnf            https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/authz.cnf
+$CURL ~/alicexrdconf/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
+$CURL ~/alicexrdconf/crontab.xrootd.tmp   https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/crontab.xrootd.tmp
+$CURL ~/alicexrdconf/authz.cnf            https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/authz.cnf
 
 # Manager templates
-$CURL ~/alicexrdconf/manager/xrootd.dpm.cf.tmp    https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/manager/xrootd.dpm.cf.tmp
-$CURL ~/alicexrdconf/manager/xrootd.xrootd.cf.tmp https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/manager/xrootd.xrootd.cf.tmp
+$CURL ~/alicexrdconf/manager/xrootd.dpm.cf.tmp    https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/manager/xrootd.dpm.cf.tmp
+$CURL ~/alicexrdconf/manager/xrootd.xrootd.cf.tmp https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/manager/xrootd.xrootd.cf.tmp
 
 # Server templates
-$CURL ~/alicexrdconf/server/xrootd.dpm.cf.tmp     https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/server/xrootd.dpm.cf.tmp
-$CURL ~/alicexrdconf/server/xrootd.xrootd.cf.tmp  https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/server/xrootd.xrootd.cf.tmp
+$CURL ~/alicexrdconf/server/xrootd.dpm.cf.tmp     https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/server/xrootd.dpm.cf.tmp
+$CURL ~/alicexrdconf/server/xrootd.xrootd.cf.tmp  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/server/xrootd.xrootd.cf.tmp
 
