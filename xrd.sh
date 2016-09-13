@@ -171,15 +171,13 @@ serverinfo() {
 
   ##  What i am?
   # default role - server
-  role="server"; server="yes"; nproc=1;
+  server="yes"; manager=""; nproc=1;
 
   # unless i am manager
   if [[ "x$myhost" == "x$MANAGERHOST" ]]; then
-    role="manager";
     manager="yes";
     server="";
     if [[ "x$SERVERONREDIRECTOR" = "x1" ]]; then # i am am both add server role
-      role="all";
       server="yes";
       nproc=2;
     fi
@@ -188,7 +186,6 @@ serverinfo() {
   export MONALISA_HOST
   export MANAGERHOST
   export LOCALPATHPFX
-  export role
   export manager
   export server
   export nproc
