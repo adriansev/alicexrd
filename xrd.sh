@@ -352,7 +352,7 @@ removecron() {
 bootstrap() {
   createconf
   mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
-  [[ "${role}" == "server" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
+  [[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
 }
 
 ######################################
