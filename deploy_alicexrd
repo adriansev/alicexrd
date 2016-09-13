@@ -2,7 +2,10 @@
 
 echo "This script will deploy ALICE XRootD settings in current user"
 echo "All previous template configs will be overwritten"
-sleep 10
+echo "Press ctrl-c for interrupting; waiting 10 seconds :"
+
+for (( i=1 ; i<12 ; i++)) ; do sleep 1 ; echo -ne "." ; done
+echo
 
 CURL='curl -fkLsS -o'
 
