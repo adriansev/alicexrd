@@ -14,7 +14,7 @@ $CURL ~/alicexrd/xrd.sh               https://raw.githubusercontent.com/adrianse
 $CURL ~/alicexrd/alicexrdservices.tmp https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdservices.tmp
 
 # Main configurations
-$CURL ~/alicexrdconf/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/system.cnf
+$CURL ~/alicexrdconf/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/system.cnf_CHANGEME
 $CURL ~/alicexrdconf/crontab.xrootd.tmp   https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/crontab.xrootd.tmp
 $CURL ~/alicexrdconf/authz.cnf            https://raw.githubusercontent.com/adriansev/alicexrd/master/alicexrdconf/authz.cnf
 
