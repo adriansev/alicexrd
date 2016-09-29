@@ -12,9 +12,8 @@ echo
 
 CURL='curl -fkLsS -o'
 
-${XRDCONFDIR:=~/alicexrdconf}
-${XRDRUNDIR:=~/alicexrdrun}
-
+XRDCONFDIR=${XRDCONFDIR:=~/alicexrdconf}
+XRDRUNDIR=${XRDRUNDIR:=~/alicexrdrun}
 
 # create directory for logs and other files
 mkdir -p ${XRDRUNDIR} ${XRDCONFDIR} ${XRDCONFDIR}/manager ${XRDCONFDIR}/server ~/alicexrd
