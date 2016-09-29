@@ -12,23 +12,27 @@ echo
 
 CURL='curl -fkLsS -o'
 
+${XRDCONFDIR:=~/alicexrdconf}
+${XRDRUNDIR:=~/alicexrdrun}
+
+
 # create directory for logs and other files
-mkdir -p ~/alicexrdrun ~/alicexrd ~/alicexrdconf ~/alicexrdconf/manager ~/alicexrdconf/server
+mkdir -p ${XRDRUNDIR} ${XRDCONFDIR} ${XRDCONFDIR}/manager ${XRDCONFDIR}/server ~/alicexrd
 
 # Script for starting services
-$CURL ~/alicexrd/xrd.sh               https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/xrd.sh && chmod +x ~/alicexrd/xrd.sh
-$CURL ~/alicexrd/alicexrdservices.tmp https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdservices.tmp
+${CURL} ~/alicexrd/xrd.sh               https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/xrd.sh && chmod +x ~/alicexrd/xrd.sh
+${CURL} ~/alicexrd/alicexrdservices.tmp https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdservices.tmp
 
 # Main configurations
-$CURL ~/alicexrdconf/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
-$CURL ~/alicexrdconf/crontab.xrootd.tmp   https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/crontab.xrootd.tmp
-$CURL ~/alicexrdconf/authz.cnf            https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/authz.cnf
+${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
+${CURL} ${XRDCONFDIR}/crontab.xrootd.tmp   https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/crontab.xrootd.tmp
+${CURL} ${XRDCONFDIR}/authz.cnf            https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/authz.cnf
 
 # Manager templates
-$CURL ~/alicexrdconf/manager/xrootd.dpm.cf.tmp    https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/manager/xrootd.dpm.cf.tmp
-$CURL ~/alicexrdconf/manager/xrootd.xrootd.cf.tmp https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/manager/xrootd.xrootd.cf.tmp
+${CURL} ${XRDCONFDIR}/manager/xrootd.dpm.cf.tmp    https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/manager/xrootd.dpm.cf.tmp
+${CURL} ${XRDCONFDIR}/manager/xrootd.xrootd.cf.tmp https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/manager/xrootd.xrootd.cf.tmp
 
 # Server templates
-$CURL ~/alicexrdconf/server/xrootd.dpm.cf.tmp     https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/server/xrootd.dpm.cf.tmp
-$CURL ~/alicexrdconf/server/xrootd.xrootd.cf.tmp  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/server/xrootd.xrootd.cf.tmp
+${CURL} ${XRDCONFDIR}/server/xrootd.dpm.cf.tmp     https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/server/xrootd.dpm.cf.tmp
+${CURL} ${XRDCONFDIR}/server/xrootd.xrootd.cf.tmp  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/server/xrootd.xrootd.cf.tmp
 
