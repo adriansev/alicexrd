@@ -25,7 +25,7 @@ all.pidpath XRDRUNDIR/admin/
 xrd.protocol xrootd *
 
 # http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375796
-xrd.port XRDSERVERPORT
+xrd.port XRDMANAGERPORT
 
 # Enable I/O monitoring. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375821
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
