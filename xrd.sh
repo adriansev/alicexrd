@@ -333,10 +333,10 @@ addcron() {
   crontab -l > ${cron_file}; # get current crontab
 
   ## add to cron_file the xrd.sh command
-  echo -ne "\n\
-*/5 * * * * ${XRDSHDIR}/xrd.sh -c >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
-0   3 * * * ${XRDSHDIR}/xrd.sh -logs >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
-@reboot     ${XRDSHDIR}/xrd.sh -c >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n" >> ${cron_file}
+  echo -ne "\
+*/5 * * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
+0   3 * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -logs >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
+@reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n" >> ${cron_file}
 
   crontab ${cron_file}; # put back the cron with xrd.sh
   rm -f ${cron_file};
