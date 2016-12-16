@@ -431,19 +431,18 @@ execEnvironment() {
 ######################################
 handlelogs() {
   cd ${XRDRUNDIR}
-  LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
   mkdir -p ${XRDRUNDIR}/logsbackup
-
-  todaynow=`date +%Y%m%d`
+  local LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
+  #local todaynow=$(date +%Y%m%d_%k%M%S)
 
   cd ${XRDRUNDIR}/logs
-  not_compressed=`find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print`
+  not_compressed=$(find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
 
-  if [[ ! -f $LOCK ]]; then
-    touch $LOCK
+  if [[ ! -f ${LOCK} ]]; then
+    touch ${LOCK}
     for log in $not_compressed; do bzip2 -9fq $log; done
+    rm -f ${LOCK}
   fi
-  rm -f $LOCK
 
   # move compressed to logs backup
   mv -f ${XRDRUNDIR}/logs/*/*.bz2 ${XRDRUNDIR}/logsbackup/ &> /dev/null
