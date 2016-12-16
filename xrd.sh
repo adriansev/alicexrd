@@ -245,11 +245,6 @@ createconf() {
 
   done;
 
-  #add variable definitions to cron job; crontab.xrootd already created above, so no modifications on crontab.xrootd.tmp
-  cd $XRDCONFDIR
-  ( /bin/echo -e "\nXRDCONFDIR=${XRDCONFDIR} \nXRDRUNDIR=${XRDRUNDIR}\n" && cat crontab.xrootd ) > crontab.xrootd2
-  mv -f crontab.xrootd2 crontab.xrootd
-
   if [[ ${SYSTEM} == "XROOTD" ]]; then
     unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
     unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
@@ -323,26 +318,27 @@ checkkeys() {
 }
 
 ######################################
-addcron() {
-    rndname="/tmp/cron.$RANDOM.xrd.sh";
-    crontab -l | grep -v "xrd.sh" | grep -v "\#" > $rndname;
-    cat $XRDCONFDIR/crontab.xrootd >> $rndname;
-    crontab $rndname;
-#    crontab -l
-    rm -f $rndname;
+removecron() {
+  local cron_file="/tmp/cron.$RANDOM.xrd.sh";
+  crontab -l | sed '/\s*#.*/! { /xrd\.sh/ d}' > ${cron_file}; # get current crontab and delete uncommented xrd.sh lines
+  crontab ${cron_file}; # put back the cron without xrd.sh
+  rm -f ${cron_file};
 }
 
 ######################################
-removecron() {
-    rndname="/tmp/cron.$RANDOM.xrd.sh";
-    crontab -l | grep -v "xrd\.sh" | grep -v "\#|" | grep -v XRDCONF | grep -v XRDRUN > $rndname;
-    tabcontent=`cat $rndname`;
-    if [ x"$tabcontent" = x ]; then
-      crontab -r
-    else
-      crontab $rndname;
-      rm -f $rndname;
-    fi
+addcron() {
+  set_system # get the main parameters
+  removecron # clean up the old xrd.sh cron line
+  cron_file="/tmp/cron.$RANDOM.xrd.sh";
+  crontab -l > ${cron_file}; # get current crontab
+
+  ## add to cron_file the xrd.sh command
+  echo -ne "\n\
+*/5 * * * * ${XRDSHDIR}/xrd.sh -c >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
+@reboot     ${XRDSHDIR}/xrd.sh -c >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n" >> ${cron_file}
+
+  crontab ${cron_file}; # put back the cron with xrd.sh
+  rm -f ${cron_file};
 }
 
 ######################################
@@ -540,10 +536,9 @@ exit $returnval
 ######################
 xrdsh_main() {
 if [[ "$1" == "-c" ]]; then  ## check and restart if not running
-    removecron
+    addcron # it will remove old xrd.sh line and
     checkkeys
     bootstrap
-    addcron
 
     ## check the number of xrootd and cmsd processes
     nxrd=`pgrep -u $USER xrootd | wc -l`;
@@ -568,10 +563,9 @@ elif [[ "$1" == "-check" ]]; then
     serverinfo
     checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
-    removecron
+    addcron # it will remove old xrd.sh line and
     checkkeys
     bootstrap
-    addcron
     date
     echo "(Re-)Starting ...."
     restartXRD
@@ -589,6 +583,8 @@ elif [[ "$1" == "-conf" ]]; then  ## create configuration
     createconf
 elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
+elif [[ "$1" == "-addcron" ]]; then  ## add cron line
+    addcron # it will remove old xrd.sh line and
 else
     echo "usage: xrd.sh arg";
     echo "where argument is _one_ of :"
@@ -598,6 +594,7 @@ else
     echo " [-logs] manage the logs";
     echo " [-conf] just (re)create configuration";
     echo " [-getkeys] just get keys";
+    echo " [-addcron] add/refresh cron line";
     echo "";
     echo "Environment variables:";
     echo "  XRDSH_NOWARN_ASLIB  do not warn xrd.sh is sourced"
