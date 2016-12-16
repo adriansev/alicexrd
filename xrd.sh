@@ -557,7 +557,6 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
 
     ## we start servMon anyway
     [[ -n "$MONALISA_HOST" ]] && servMon
-    handlelogs
     checkstate
 elif [[ "$1" == "-check" ]]; then
     serverinfo
