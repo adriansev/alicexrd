@@ -1,6 +1,5 @@
 # COMMON section          #
 # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222303
-# http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930729
 all.export / r/w
 
 # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
