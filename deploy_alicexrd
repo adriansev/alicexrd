@@ -24,7 +24,6 @@ ${CURL} ~/alicexrd/alicexrdservices.tmp https://raw.githubusercontent.com/adrian
 
 # Main configurations
 ${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
-${CURL} ${XRDCONFDIR}/crontab.xrootd.tmp   https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/crontab.xrootd.tmp
 ${CURL} ${XRDCONFDIR}/authz.cnf            https://raw.githubusercontent.com/adriansev/alicexrd/${BRANCH}/alicexrdconf/authz.cnf
 
 # Manager templates
