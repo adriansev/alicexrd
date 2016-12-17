@@ -1,4 +1,4 @@
-#	COMMON section          #
+#   COMMON section   #
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930729
 all.export / nolock r/w nocheck norcreate
 
@@ -14,7 +14,7 @@ all.manager MANAGERHOST CMSDMANAGERPORT
 # Specify execution tracing options. http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375806
 #all.trace debug all
 
-#	XRD Daemon section	#
+#   XRD Daemon section   #
 # http://xrootd.org/doc/dev42/xrd_config.htm#_Toc411375793
 all.adminpath XRDRUNDIR/admin/
 
@@ -60,14 +60,14 @@ ofs.authorize
 # Specify the location of the file system authorization interface layer. http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930712
 ofs.authlib /usr/libBITARCH/ACCLIB
 
-#	  CMSD Section		#
+#   CMSD Section   #
 # Manage processing latency. http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250526
 cms.delay servers 1 startup 10
 
 # Specify the parameters for the load balancing scheduling algorithm. http://xrootd.org/doc/dev43/cms_config.htm#_Toc436250517
 cms.sched cpu 10 io 10 space 80
 
-#	   OSS Section		#
+#    OSS Section   #
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930728
 oss.defaults nomig nodread nocheck norcreate nolock
 
