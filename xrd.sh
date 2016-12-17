@@ -23,7 +23,7 @@ set_system() {
 # Find configs, dirs, xrduser, ...
 
 # set arch for lib definition
-[[ "`/bin/arch`" == "x86_64" ]] && export BITARCH=64
+[[ "$(/bin/arch)" == "x86_64" ]] && export BITARCH=64
 
 ## find the location of xrd.sh script
 SOURCE="${BASH_SOURCE[0]}"
@@ -37,7 +37,7 @@ SOURCE="${BASH_SOURCE[0]}"
 #done
 #XRDSHDIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
-export XRDSHDIR=`dirname $SOURCE`
+export XRDSHDIR=$(dirname $SOURCE)
 
 # make sure xrd.sh is executable by user and user group
 chmod ug+x ${XRDSHDIR}/xrd.sh
@@ -59,17 +59,17 @@ export apmonPidFile=${XRDRUNDIR}/admin/apmon.pid
 export apmonLogFile=${XRDRUNDIR}/logs/apmon.log
 
 USER=${USER:-$LOGNAME}
-[[ -z "$USER" ]] && USER=`id -nu`
+[[ -z "$USER" ]] && USER=$(id -nu)
 
 SCRIPTUSER=$USER
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=`stat -c %U $XRDSHDIR`
+XRDUSER=$(stat -c %U $XRDSHDIR)
 
 ## if xrd.sh is started by root get the home of the designated xrd user
 if [[ "$USER" == "root" ]]; then
     USER=$XRDUSER
-    XRDHOME=`su $XRDUSER  -c "/bin/echo \\\$HOME"`
+    XRDHOME=$(su $XRDUSER  -c "/bin/echo \\\$HOME")
     cd "$XRDHOME"
 
     if [ $? -eq 0 ]; then
@@ -125,13 +125,13 @@ startUp() {
       cd "$XRDSHDIR"
       su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
       echo_passed
-      #	test $? -eq 0 && echo_success || echo_failure
+      # test $? -eq 0 && echo_success || echo_failure
       echo
     else
       ulimit -c unlimited
       $*
       echo_passed
-      #	test $? -eq 0 && echo_success || echo_failure
+      # test $? -eq 0 && echo_success || echo_failure
       echo
     fi
 }
@@ -157,13 +157,13 @@ serverinfo() {
   echo "The fully qualified hostname appears to be $myhost"
 
   ## Network information and validity checking
-  MYIP=`dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | sed 's/\"//g' | awk -F, '{print $1}'`
-  ip_list=`/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}'`
+  MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | sed 's/\"//g' | awk -F, '{print $1}')
+  ip_list=$(/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}')
 
-  found_at=`expr index "$ip_list" "$MYIP"`
+  found_at=$(expr index "$ip_list" "$MYIP")
   [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
 
-  reverse=`host $MYIP | awk '{ print substr ($NF,1,length($NF)-1);}'`
+  reverse=$(host ${MYIP} | awk '{ print substr ($NF,1,length($NF)-1);}')
   [[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
 
   #echo "host = "$myhost
@@ -177,7 +177,7 @@ serverinfo() {
   if [[ "x$myhost" == "x$MANAGERHOST" ]]; then
     manager="yes";
     server="";
-    if [[ "x$SERVERONREDIRECTOR" = "x1" ]]; then # i am am both add server role
+    if [[ "x$SERVERONREDIRECTOR" = "x1" ]]; then # i am am both, add server role
       server="yes";
       nproc=2;
     fi
@@ -196,7 +196,7 @@ createconf() {
   serverinfo
 
   ###################
-  export osscachetmp=`echo -e $OSSCACHE`;
+  export osscachetmp=$(echo -e $OSSCACHE);
 
   # Replace XRDSHDIR for service starting
   cd ${XRDSHDIR}
@@ -204,8 +204,8 @@ createconf() {
   perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
 
   cd ${XRDCONFDIR}
-  for name in `find . -type f | grep ".tmp"`; do
-    newname=`echo $name | sed s/\.tmp// `;
+  for name in $(find . -type f | grep ".tmp"); do
+    newname=$(echo $name | sed s/\.tmp// )
     cp -f $name $newname;
 
     # Set xrootd site name
@@ -220,9 +220,9 @@ createconf() {
     # write storage partitions
     perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${XRDCONFDIR}/$newname;
 
-    #	if [ -n "$OSSCACHE" ] ; then
-    #	    echo -e "\n\n\n${OSSCACHE}\n\n\n" >> ${XRDCONFDIR}/$newname
-    #	fi
+    # if [ -n "$OSSCACHE" ] ; then
+    #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> ${XRDCONFDIR}/$newname
+    # fi
 
     # Monalisa stuff which has to be commented out in some cases
     if [[ -n "$MONALISA_HOST" ]] ; then
@@ -257,7 +257,7 @@ createconf() {
     fi
   fi;
 
-  rm -f `find ${XRDCONFDIR}/ -name "*.template"`
+  rm -f $(find ${XRDCONFDIR}/ -name "*.template")
   cd -;
 }
 
@@ -300,7 +300,7 @@ checkkeys() {
       done
 
       if [[ "$installkeys" == "yes" ]]; then
-        [[ `id -u` == "0" ]] && authz_dir=${authz_dir1}
+        [[ $(id -u) == "0" ]] && authz_dir=${authz_dir1}
         mkdir -p ${authz_dir}
         echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
 
@@ -309,7 +309,6 @@ checkkeys() {
         chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
 
         create_tkauthz ${authz_dir}
-
         chown -R $XRDUSER $XRDHOME/.authz
       fi
 
@@ -356,7 +355,7 @@ getSrvToMon() {
 
   for typ in manager server ; do
     for srv in xrootd cmsd ; do
-      pid=`pgrep -f -U $USER "$srv .*$typ" | head -1`
+      pid=$(pgrep -f -U $USER "$srv .*$typ" | head -1)
       [[ -n "${pid}" ]] && srvToMon="$srvToMon ${se}${typ}_${srv} $pid"
     done
   done
@@ -417,7 +416,7 @@ execEnvironment() {
     EXECENV="ulimit -c unlimited;"
     ulimit -n ${XRDMAXFD}
 
-    fdmax=`ulimit -n`
+    fdmax=$(ulimit -n)
     if (( fdmax < 65000 )) ; then
       echo "Fatal: This machine does not allow more than $fdmax file descriptors. At least 65000 are needed for serious operation - abort"
       exit -1
@@ -471,10 +470,12 @@ restartXRD() {
 
       echo -n "Starting xrootd [server]: "
       startUp /usr/bin/xrootd -n server -b $XRDDEBUG -l ${XRDRUNDIR}/logs/xrdlog -c ${XRDCONFDIR}/server/xrootd.cf -s ${XRDRUNDIR}/admin/xrd_svr.pid
+
       echo -n "Starting cmsd   [server]: "
       startUp /usr/bin/cmsd   -n server -b $XRDDEBUG -l ${XRDRUNDIR}/logs/cmslog -c ${XRDCONFDIR}/server/xrootd.cf -s ${XRDRUNDIR}/admin/cmsd_svr.pid
       )
     fi
+
     startMon
     sleep 1 ## need delay for starMon
 }
@@ -486,8 +487,8 @@ echo "******************************************"
 date
 echo "******************************************"
 
-nxrd=`pgrep -u $USER xrootd | wc -l`;
-ncms=`pgrep -u $USER cmsd   | wc -l`;
+nxrd=$(pgrep -u $USER xrootd | wc -l);
+ncms=$(pgrep -u $USER cmsd   | wc -l);
 
 returnval=0
 
@@ -514,7 +515,7 @@ else
 fi
 
 if [[ -n "${MONALISA_HOST}" ]] ; then
-  lines=`find ${apmonPidFile}* 2>/dev/null | wc -l`
+  lines=$(find ${apmonPidFile}* 2>/dev/null | wc -l)
 
   if (( lines > 0 )) ; then
     echo -n "apmon:";
@@ -541,8 +542,8 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     bootstrap
 
     ## check the number of xrootd and cmsd processes
-    nxrd=`pgrep -u $USER xrootd | wc -l`;
-    ncms=`pgrep -u $USER cmsd   | wc -l`;
+    nxrd=$(pgrep -u $USER xrootd | wc -l)
+    ncms=$(pgrep -u $USER cmsd   | wc -l)
 
     ## if their number is lower than it should (number given by the roles)
     if (( (nxrd < nproc) || (ncms < nproc) )) ; then
@@ -600,13 +601,14 @@ else
 fi
 }
 
+###########################
+###   BEGIN EXECUTION   ###
+###########################
+
 ## Allow loading functions as library
 #  Warns unless SKIPWARN_XRDSH_ASLIB is set
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]
-then
-    if [[ -z "${XRDSH_NOWARN_ASLIB}" ]]; then
-        echo "Warning: using xrd.sh as library!"
-    fi
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]] ; then
+    [[ -z "${XRDSH_NOWARN_ASLIB}" ]] && echo "Warning: using xrd.sh as library!"
     return 0
 fi
 
