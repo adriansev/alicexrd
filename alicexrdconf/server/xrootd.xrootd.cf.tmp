@@ -51,7 +51,7 @@ ofs.trace open
 
 # Enable and set third-party-copy (TPC) parameters.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930723
-ofs.tpc pgm /usr/bin/xrdcp -f
+ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
 
 # Enable window scaling on the monostream connection.
 # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222293

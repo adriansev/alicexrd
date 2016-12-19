@@ -45,7 +45,7 @@ xrootd.fslib /usr/libBITARCH/libXrdOfs.so
 
 # Enable and set third-party-copy (TPC) parameters.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930723
-ofs.tpc pgm /usr/bin/xrdcp -f
+ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
 
 #         CMSD Section          #
 # Manage processing latency.
