@@ -157,7 +157,8 @@ serverinfo() {
   echo "The fully qualified hostname appears to be $myhost"
 
   ## Network information and validity checking
-  MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | sed 's/\"//g' | awk -F, '{print $1}')
+  MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | awk -F, '{gsub (/"/,"",$1); print $1;}')
+
   ip_list=$(/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}')
 
   found_at=$(expr index "$ip_list" "$MYIP")
