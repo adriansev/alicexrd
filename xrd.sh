@@ -144,8 +144,8 @@ serverinfo() {
 
   se_info=$(curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
 
-  MANAGERHOST=$( echo "$se_info" | grep seioDaemons | awk -F": " '{ gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
-  LOCALPATHPFX=$( echo "$se_info" | grep seStoragePath | awk -F": " '{ print $2 }' )
+  MANAGERHOST=$( echo "$se_info" | awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
+  LOCALPATHPFX=$( echo "$se_info" | awk -F": " '/seStoragePath/ { print $2 }' )
 
   ## what is my hostname
   [[ -z "$myhost" ]] && myhost=`hostname -f`
