@@ -148,6 +148,8 @@ serverinfo() {
   LOCALPATHPFX=$( echo "$se_info" | awk -F": " '/seStoragePath/ { print $2 }' )
 
   IS_MANAGER_ALIAS=$(host ${MANAGERHOST}| wc -l)
+  ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
+  (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
 
   ## what is my hostname
   [[ -z "$myhost" ]] && myhost=`hostname -f`
