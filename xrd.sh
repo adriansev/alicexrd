@@ -139,13 +139,13 @@ startUp() {
 ######################################
 serverinfo() {
   ## Find information about site from ML
-  MONALISA_HOST_INFO=$( host $( curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | awk -F, '{print $1}' ) )
-  MONALISA_HOST=$( echo "$MONALISA_HOST_INFO" | awk '{ print substr ($NF,1,length($NF)-1);}' )
+  MONALISA_HOST_INFO=$( host $( curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}' ) )
+  MONALISA_HOST=$( echo "$MONALISA_HOST_INFO" | /bin/awk '{ print substr ($NF,1,length($NF)-1);}' )
 
   se_info=$(curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
 
-  MANAGERHOST=$( echo "$se_info" | awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
-  LOCALPATHPFX=$( echo "$se_info" | awk -F": " '/seStoragePath/ { print $2 }' )
+  MANAGERHOST=$( echo "$se_info" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
+  LOCALPATHPFX=$( echo "$se_info" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
 
   IS_MANAGER_ALIAS=$(host ${MANAGERHOST}| wc -l)
   ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
@@ -161,14 +161,14 @@ serverinfo() {
   echo "The fully qualified hostname appears to be $myhost"
 
   ## Network information and validity checking
-  MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | awk -F, '{gsub (/"/,"",$1); print $1;}')
+  MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | /bin/awk -F, '{gsub (/"/,"",$1); print $1;}')
 
-  ip_list=$(/sbin/ip addr show scope global permanent up | awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
+  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
 
   found_at=$(expr index "$ip_list" "$MYIP")
   [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
 
-  reverse=$(host ${MYIP} | awk '{ print substr ($NF,1,length($NF)-1);}')
+  reverse=$(host ${MYIP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
   [[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
 
   #echo "host = "$myhost
