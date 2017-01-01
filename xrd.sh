@@ -159,7 +159,7 @@ serverinfo() {
   ## Network information and validity checking
   MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | awk -F, '{gsub (/"/,"",$1); print $1;}')
 
-  ip_list=$(/sbin/ip addr show scope global permanent up | grep inet | awk '{ split ($2,ip,"/"); print ip[1]}')
+  ip_list=$(/sbin/ip addr show scope global permanent up | awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
 
   found_at=$(expr index "$ip_list" "$MYIP")
   [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
