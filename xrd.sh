@@ -15,7 +15,8 @@ SETCOLOR_NORMAL="echo -en \\033[0;39m"
 check_prerequisites() {
 [ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit 1; }
 [ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
-[ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install wget.x86_64"; exit 1; }
+[ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
+[ ! -e "/usr/bin/bzip2" ] && { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
 }
 
 set_system() {
@@ -35,12 +36,12 @@ SOURCE="${BASH_SOURCE[0]}"
 #  # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 #  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 #done
-#XRDSHDIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+#XRDSHDIR="$( cd -P "$(/usr/bin/dirname "$SOURCE" )" && pwd )"
 
-export XRDSHDIR=$(dirname $SOURCE)
+export XRDSHDIR=$(/usr/bin/dirname $SOURCE)
 
 # make sure xrd.sh is executable by user and user group
-chmod ug+x ${XRDSHDIR}/xrd.sh
+/bin/chmod ug+x ${XRDSHDIR}/xrd.sh
 
 # location of logs, admin, core dirs
 XRDRUNDIR=${XRDRUNDIR:-$XRDSHDIR/run/}
@@ -59,12 +60,12 @@ export apmonPidFile=${XRDRUNDIR}/admin/apmon.pid
 export apmonLogFile=${XRDRUNDIR}/logs/apmon.log
 
 USER=${USER:-$LOGNAME}
-[[ -z "$USER" ]] && USER=$(id -nu)
+[[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
 
 SCRIPTUSER=$USER
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(stat -c %U $XRDSHDIR)
+XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
 
 ## if xrd.sh is started by root get the home of the designated xrd user
 if [[ "$USER" == "root" ]]; then
@@ -123,7 +124,7 @@ echo_passed() {
 startUp() {
     if [[ "$SCRIPTUSER" == "root" ]]; then
       cd "$XRDSHDIR"
-      su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
+      /bin/su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
       echo_passed
       # test $? -eq 0 && echo_success || echo_failure
       echo
@@ -142,7 +143,7 @@ serverinfo() {
   MONALISA_HOST_INFO=$(/usr/bin/host $(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}' ) )
   MONALISA_HOST=$(echo "$MONALISA_HOST_INFO" | /bin/awk '{ print substr ($NF,1,length($NF)-1);}' )
 
-  se_info=$(curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
+  se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
 
   MANAGERHOST=$(echo "$se_info" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
   LOCALPATHPFX=$(echo "$se_info" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
@@ -159,7 +160,7 @@ serverinfo() {
   [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
 
   ## Network information and validity checking
-  MYIP=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | /bin/awk -F, '{gsub (/"/,"",$1); print $1;}')
+  MYIP=$(/usr/bin/dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | /bin/awk -F, '{gsub (/"/,"",$1); print $1;}')
 
   ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
 
@@ -206,24 +207,24 @@ createconf() {
   # Replace XRDSHDIR for service starting
   cd ${XRDSHDIR}
   cp -f alicexrdservices.tmp alicexrdservices;
-  perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
+  /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
 
   cd ${XRDCONFDIR}
-  for name in $(find . -type f | grep ".tmp"); do
-    newname=$(echo $name | sed s/\.tmp// )
+  for name in $(/bin/find . -type f -name ".tmp"); do
+    newname=$(echo $name | /bin/sed s/\.tmp// )
     cp -f $name $newname;
 
     # Set xrootd site name
-    perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${XRDCONFDIR}/$newname;
 
     # Replace XRDSHDIR and XRDRUNDIR
-    perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${XRDCONFDIR}/$newname;
 
     # Substitute all the variables into the templates
-    perl -pi -e 's/BITARCH/$ENV{BITARCH}/g; s/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g; s/SERVERONREDIRECTOR/$ENV{SERVERONREDIRECTOR}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/BITARCH/$ENV{BITARCH}/g; s/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g; s/SERVERONREDIRECTOR/$ENV{SERVERONREDIRECTOR}/g;' ${XRDCONFDIR}/$newname;
 
     # write storage partitions
-    perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${XRDCONFDIR}/$newname;
 
     # if [ -n "$OSSCACHE" ] ; then
     #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> ${XRDCONFDIR}/$newname
@@ -231,38 +232,38 @@ createconf() {
 
     # Monalisa stuff which has to be commented out in some cases
     if [[ -n "$MONALISA_HOST" ]] ; then
-      perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${XRDCONFDIR}/$newname
     else
-      perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${XRDCONFDIR}/$newname
     fi
 
     # XrdAcc stuff which has to be commented out in some cases
     if [[ -n "$ACCLIB" ]] ; then
-      perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${XRDCONFDIR}/$newname
     else
-      perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${XRDCONFDIR}/$newname
     fi
 
     # Xrdn2n stuff which has to be commented out in some cases
     if [[ -z "$LOCALPATHPFX" ]] ; then
-      perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${XRDCONFDIR}/$newname
     fi
 
   done;
 
   if [[ ${SYSTEM} == "XROOTD" ]]; then
-    unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
-    unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
+    /bin/unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
+    /bin/unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
   elif [[ ${SYSTEM} == "DPM" ]]; then
-    unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; ln -s ${XRDCONFDIR}/server/xrootd.dpm.cf  ${XRDCONFDIR}/server/xrootd.cf;
-    unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; ln -s ${XRDCONFDIR}/manager/xrootd.dpm.cf ${XRDCONFDIR}/manager/xrootd.cf;
+    /bin/unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/server/xrootd.dpm.cf  ${XRDCONFDIR}/server/xrootd.cf;
+    /bin/unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/manager/xrootd.dpm.cf ${XRDCONFDIR}/manager/xrootd.cf;
 
     if [[ -z "$DPM_HOST" ]]; then
       echo -e "\n\n##########################################################################\nWarning: you should define DPM_HOST in the environment of user $USER if you want to run with DPM!!!\n##########################################################################\n";
     fi
   fi;
 
-  rm -f $(find ${XRDCONFDIR}/ -name "*.template")
+  /bin/rm -f $(find ${XRDCONFDIR}/ -name "*.template")
   cd -;
 }
 
@@ -271,7 +272,7 @@ create_tkauthz() {
   local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
 
   echo "KEY VO:*       PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem" > ${PRIV_KEY_DIR}/TkAuthz.Authorization
-  chmod 600 ${PRIV_KEY_DIR}/TkAuthz.Authorization
+  /bin/chmod 600 ${PRIV_KEY_DIR}/TkAuthz.Authorization
 
   #########################################
   # the root of the exported namespace you allow to export on your disk servers
@@ -305,16 +306,16 @@ checkkeys() {
       done
 
       if [[ "$installkeys" == "yes" ]]; then
-        [[ $(id -u) == "0" ]] && authz_dir=${authz_dir1}
-        mkdir -p ${authz_dir}
+        [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
+        /bin/mkdir -p ${authz_dir}
         echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
 
         cd ${authz_dir}
-        curl -fsSL -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
-        chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
+        /usr/bin/curl -fsSL -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
+        /bin/chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
 
         create_tkauthz ${authz_dir}
-        chown -R $XRDUSER $XRDHOME/.authz
+        /bin/chown -R $XRDUSER $XRDHOME/.authz
       fi
 
     cd ~
@@ -324,9 +325,9 @@ checkkeys() {
 ######################################
 removecron() {
   local cron_file="/tmp/cron.$RANDOM.xrd.sh";
-  crontab -l | sed '/\s*#.*/! { /xrd\.sh/ d}' > ${cron_file}; # get current crontab and delete uncommented xrd.sh lines
-  crontab ${cron_file}; # put back the cron without xrd.sh
-  rm -f ${cron_file};
+  /usr/bin/crontab -l | sed '/\s*#.*/! { /xrd\.sh/ d}' > ${cron_file}; # get current crontab and delete uncommented xrd.sh lines
+  /usr/bin/crontab ${cron_file}; # put back the cron without xrd.sh
+  /bin/rm -f ${cron_file};
 }
 
 ######################################
@@ -334,7 +335,7 @@ addcron() {
   set_system # get the main parameters
   removecron # clean up the old xrd.sh cron line
   cron_file="/tmp/cron.$RANDOM.xrd.sh";
-  crontab -l > ${cron_file}; # get current crontab
+  /usr/bin/crontab -l > ${cron_file}; # get current crontab
 
   ## add to cron_file the xrd.sh command
   echo -ne "\
@@ -342,14 +343,14 @@ addcron() {
 0   3 * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -logs >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
 @reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n" >> ${cron_file}
 
-  crontab ${cron_file}; # put back the cron with xrd.sh
-  rm -f ${cron_file};
+  /usr/bin/crontab ${cron_file}; # put back the cron with xrd.sh
+  /bin/rm -f ${cron_file};
 }
 
 ######################################
 bootstrap() {
   createconf
-  mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
+  /bin/mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
   [[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
 }
 
@@ -360,7 +361,7 @@ getSrvToMon() {
 
   for typ in manager server ; do
     for srv in xrootd cmsd ; do
-      pid=$(pgrep -f -U $USER "$srv .*$typ" | head -1)
+      pid=$(/usr/bin/pgrep -f -U $USER "$srv .*$typ" | head -1)
       [[ -n "${pid}" ]] && srvToMon="$srvToMon ${se}${typ}_${srv} $pid"
     done
   done
@@ -389,13 +390,13 @@ startMon() {
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
 
-    pkill -u $USER xrootd
-    pkill -u $USER cmsd
-    sleep 1
-    pkill -9 -u $USER xrootd
-    pkill -9 -u $USER cmsd
-    pkill -f -u $USER XrdOlbMonPerf
-    pkill -f -u $USER mpxstats
+    /usr/bin/pkill -u $USER xrootd
+    /usr/bin/pkill -u $USER cmsd
+    /bin/sleep 1
+    /usr/bin/pkill -9 -u $USER xrootd
+    /usr/bin/pkill -9 -u $USER cmsd
+    /usr/bin/pkill -f -u $USER XrdOlbMonPerf
+    /usr/bin/pkill -f -u $USER mpxstats
 
     echo_passed;
     echo
@@ -406,9 +407,9 @@ killXRD() {
 
 ######################################
 execEnvironment() {
-    mkdir -p ${XRDRUNDIR}/logs/
-    mkdir -p ${XRDRUNDIR}/core/${USER}_$1
-    mkdir -p ${XRDRUNDIR}/admin/
+    /bin/mkdir -p ${XRDRUNDIR}/logs/
+    /bin/mkdir -p ${XRDRUNDIR}/core/${USER}_$1
+    /bin/mkdir -p ${XRDRUNDIR}/admin/
 
     cd ${XRDRUNDIR}/core/${USER}_$1
 
@@ -427,25 +428,25 @@ execEnvironment() {
       exit -1
     fi
 
-    chown -R $XRDUSER ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
-    chmod -R 755 ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
+    /bin/chown -R $XRDUSER ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
+    /bin/chmod -R 755 ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
 }
 
 
 ######################################
 handlelogs() {
   cd ${XRDRUNDIR}
-  mkdir -p ${XRDRUNDIR}/logsbackup
+  /bin/mkdir -p ${XRDRUNDIR}/logsbackup
   local LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
   #local todaynow=$(date +%Y%m%d_%k%M%S)
 
   cd ${XRDRUNDIR}/logs
-  not_compressed=$(find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
+  not_compressed=$(/bin/find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
 
   if [[ ! -f ${LOCK} ]]; then
     touch ${LOCK}
-    for log in $not_compressed; do bzip2 -9fq $log; done
-    rm -f ${LOCK}
+    for log in $not_compressed; do /usr/bin/bzip2 -9fq $log; done
+    /bin/rm -f ${LOCK}
   fi
 
   # move compressed to logs backup
@@ -492,8 +493,8 @@ echo "******************************************"
 date
 echo "******************************************"
 
-nxrd=$(pgrep -u $USER xrootd | wc -l);
-ncms=$(pgrep -u $USER cmsd   | wc -l);
+nxrd=$(/usr/bin/pgrep -u $USER xrootd | wc -l);
+ncms=$(/usr/bin/pgrep -u $USER cmsd   | wc -l);
 
 returnval=0
 
@@ -520,7 +521,7 @@ else
 fi
 
 if [[ -n "${MONALISA_HOST}" ]] ; then
-  lines=$(find ${apmonPidFile}* 2>/dev/null | wc -l)
+  lines=$(/bin/find ${apmonPidFile}* 2>/dev/null | /usr/bin/wc -l)
 
   if (( lines > 0 )) ; then
     echo -n "apmon:";
@@ -547,14 +548,14 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     bootstrap
 
     ## check the number of xrootd and cmsd processes
-    nxrd=$(pgrep -u $USER xrootd | wc -l)
-    ncms=$(pgrep -u $USER cmsd   | wc -l)
+    nxrd=$(/usr/bin/pgrep -u $USER xrootd | /usr/bin/wc -l)
+    ncms=$(/usr/bin/pgrep -u $USER cmsd   | /usr/bin/wc -l)
 
     ## if their number is lower than it should (number given by the roles)
     if (( (nxrd < nproc) || (ncms < nproc) )) ; then
-      date
+      /bin/date
       echo "------------------------------------------"
-      ps
+      /bin/ps
       echo "------------------------------------------"
       echo "Starting all .... (only $nxrd xrootds $ncms cmsds)"
       restartXRD
@@ -571,7 +572,7 @@ elif [[ "$1" == "-f" ]]; then   ## force restart
     addcron # it will remove old xrd.sh line and
     checkkeys
     bootstrap
-    date
+    /bin/date
     echo "(Re-)Starting ...."
     restartXRD
 
