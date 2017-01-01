@@ -139,7 +139,7 @@ startUp() {
 ######################################
 serverinfo() {
   ## Find information about site from ML
-  MONALISA_HOST_INFO=$(host $(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}' ) )
+  MONALISA_HOST_INFO=$(/usr/bin/host $(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}' ) )
   MONALISA_HOST=$(echo "$MONALISA_HOST_INFO" | /bin/awk '{ print substr ($NF,1,length($NF)-1);}' )
 
   se_info=$(curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
@@ -147,7 +147,7 @@ serverinfo() {
   MANAGERHOST=$(echo "$se_info" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
   LOCALPATHPFX=$(echo "$se_info" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
 
-  IS_MANAGER_ALIAS=$(host ${MANAGERHOST}| wc -l)
+  IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
   ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
   (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
 
@@ -166,7 +166,7 @@ serverinfo() {
   found_at=$(expr index "$ip_list" "$MYIP")
   [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
 
-  reverse=$(host ${MYIP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
+  reverse=$(/usr/bin/host ${MYIP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
   [[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
 
   echo "The fully qualified hostname appears to be $myhost"
