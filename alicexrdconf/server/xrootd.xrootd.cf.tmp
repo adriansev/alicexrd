@@ -87,7 +87,7 @@ oss.defaults nomig nodread nocheck norcreate nolock
 
 # Specify the way a disk partition is selected for file placement.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930727
-oss.alloc 2G 20 0
+oss.alloc 20G 20 0
 
 # Specify how file descriptors are allocated.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930736
