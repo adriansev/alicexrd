@@ -199,7 +199,11 @@ serverinfo() {
 
 ######################################
 createconf() {
+  set_system
   serverinfo
+
+  echo "xrdsh dir is : ${XRDSHDIR}"
+  echo "xrdconfdir is : ${XRDCONFDIR}"
 
   ###################
   export osscachetmp=$(echo -e $OSSCACHE);
