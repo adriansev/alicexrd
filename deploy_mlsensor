@@ -1,0 +1,126 @@
+#!/bin/bash
+
+##   REQUIRED DEFINITIONS
+
+SE_NAME='ALICE::ISS::FILE'
+SENSOR_HOME="$HOME/MLSensor"
+
+#####################################
+#####################################
+
+echo "BE SURE TO DEFINE THE SE STORAGE"
+echo "DEFINED SE = ${SE_NAME}"
+echo
+
+##   functions for configurations editing
+myreplace       () { a=$(echo $1 | sed 's/\//\\\//g') ; b=$(echo $2 | sed 's/\//\\\//g') ; cat | sed "s/$a/$b/g" ; }
+replace_in_file () { cat $1 | myreplace "$2" "$3" > $1.new ; rm -f $1 ; mv $1.new $1 ; }
+
+###############################################################################################
+###   DEPLOY MLSensor
+
+cd $(/bin/dirname ${SENSOR_HOME})
+pwd
+
+## first download the MLSensor
+rm -rf MLSensor.tgz
+wget -q http://monalisa.cern.ch/MLSensor/MLSensor.tgz || { echo "Could not download MLSensor.tgz" && exit 1; }
+
+## if MLSensor in place, try to stop it
+[[ -f "${SENSOR_HOME}/bin/MLSensor" ]] && ${SENSOR_HOME}/bin/MLSensor stop
+
+## backup old/previous version
+[[ -d "${SENSOR_HOME}" ]] && mv -v ${SENSOR_HOME} ${SENSOR_HOME}_$(date +%Y%m%d_%k%M%S)
+
+## make sure the destination is in place and extract there the MLSensor
+mkdir -p ${SENSOR_HOME}
+tar -C ${SENSOR_HOME}/ --strip-components=1 -xf MLSensor.tgz
+
+########################################
+###   Configure mlsensor_env - java  ###
+########################################
+
+[[ -z "${JAVA_HOME}" ]] && JAVA_CMD="java" || JAVA_CMD="${JAVA_HOME}/bin/java"
+
+LOCAL_VERSION=$(${JAVA_CMD} -Xmx2m -Xms2m -version 2>&1 | awk '/java version/ { print substr($3, 2, length($3)-2); }')
+
+if [[ -z "${LOCAL_VERSION}" ]] ; then
+    cd ${SENSOR_HOME}
+
+    ## get latest local jre
+    wget -q http://monitor.spacescience.ro/java/jre-latest.tar.gz
+
+    ## create jre directory and extract the latest jre there
+    mkdir -p jre ; tar -C jre/ --strip-components=1 -xf jre-latest.tar.gz && rm -rf jre-latest.tar.gz
+    pwd; ls -la
+
+    replace_in_file ${SENSOR_HOME}/etc/mlsensor_env "#JAVA_HOME=" "export JAVA_HOME=${SENSOR_HOME}/jre\n\nexport PATH=\$JAVA_HOME/bin:\$PATH"
+else
+    replace_in_file ${SENSOR_HOME}/etc/mlsensor_env "#JAVA_HOME=" "export JAVA_HOME=${JAVA_HOME}\n\nexport PATH=\$JAVA_HOME/bin:\$PATH"
+fi
+
+###############################################################################################
+## INFORMATION ON THE SITE- based on MonaLisa information
+
+## Find information about site from ML
+se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
+MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
+
+## TODO :: to be replaced by vobox/ml destionation found in se.jsp
+
+MONALISA_HOST_INFO=$(/usr/bin/host $(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}' ) )
+MONALISA_HOST=$(echo "${MONALISA_HOST_INFO}" | /bin/awk '{ print substr ($NF,1,length($NF)-1);}' )
+MONALISA_PORT="8884"
+
+targetml=${MONALISA_HOST}":"${MONALISA_PORT}
+
+## WHO I AM?
+FQDN=$(hostname -f)
+DOMAIN=$(hostname -d)
+
+## detect the proper reverse ip and check it is in the list of redirector host definition (for the case of multiple redundant ips)
+# IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
+
+## WHAT IS MY ROLE?
+is_manager="" ; is_server="" ;
+
+[[ "x$FQDN" == "x$MANAGERHOST" ]] && is_manager="1" || is_server="1"
+
+is_xrdserver_running=$(xrdmapc --list s --refresh ${MANAGERHOSTPORT} | grep Srv | grep $FQDN)
+
+#########################################
+###   Configure mlsensor.propreties   ###
+#########################################
+
+## Set the target MonaLisa aggregator
+replace_in_file MLSensor/etc/mlsensor.properties "localhost:56884" "$targetml"
+
+replace_in_file MLSensor/etc/mlsensor.properties "cluster.name=MLSensor"      "cluster.name=${SE_NAME}"
+replace_in_file MLSensor/etc/mlsensor.properties "cluster.name.dynamic=true"  "cluster.name.dynamic=false"
+replace_in_file MLSensor/etc/mlsensor.properties "cluster.name.suffix=_Nodes" "cluster.name.suffix=_xrootd_Nodes"
+
+(
+echo
+echo "# Be compatible with legacy Perl xrootd monitoring companion"
+echo "rewrite.parameter.names=true"
+echo "cluster.name.suffix.monXrdSpace=_manager_xrootd_Services"
+echo
+echo "# Run the disk space checking every 5 minutes"
+echo "monXrdSpace.execDelay=300"
+echo
+echo "# Change this to the full path to xrd if it cannot be found in PATH, and replace 1094 with redirector port number"
+echo "lia.Monitor.modules.monXrdSpace.args=xrd 1094"
+) >> MLSensor/etc/mlsensor.properties
+
+if [[ x"${is_manager}" == x"1" ]] ; then
+    (
+    echo
+    echo
+    echo "# Monitor xrootd disk space usage"
+    echo "# ************* IMPORTANT: only enable the following line on the redirector itself"
+    echo "mlsensor.modules=monXrdSpace"
+    ) >> MLSensor/etc/mlsensor.properties
+fi
+
+echo "!!!!!!! CHECK MLSensor/etc/mlsensor.properties to be sure that settings are ok!!!!!!!!!!!!"
+
