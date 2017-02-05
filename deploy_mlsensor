@@ -17,6 +17,31 @@ myreplace       () { a=$(echo $1 | sed 's/\//\\\//g') ; b=$(echo $2 | sed 's/\//
 replace_in_file () { cat $1 | myreplace "$2" "$3" > $1.new ; rm -f $1 ; mv $1.new $1 ; }
 
 ###############################################################################################
+###   Network prerequisites for install
+
+## WHO I AM?
+[[ -z "$myhost" ]] && myhost=$(/bin/hostname -f)
+[[ -z "$myhost" ]] && myhost=$(/bin/hostname)
+[[ -z "$myhost" ]] && myhost=$HOST
+
+[[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
+
+DOMAIN=$(hostname -d)
+
+## Network information and validity checking
+MYIP=$(/usr/bin/dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | /bin/awk -F, '{gsub (/"/,"",$1); print $1;}')
+
+ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
+
+found_at=$(expr index "$ip_list" "$MYIP")
+[[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
+
+reverse=$(/usr/bin/host ${MYIP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
+[[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
+
+echo "The fully qualified hostname appears to be $myhost"
+
+###############################################################################################
 ###   DEPLOY MLSensor
 
 cd $(/bin/dirname ${SENSOR_HOME})
@@ -73,10 +98,6 @@ MONALISA_HOST=$(echo "${MONALISA_HOST_INFO}" | /bin/awk '{ print substr ($NF,1,l
 MONALISA_PORT="8884"
 
 targetml=${MONALISA_HOST}":"${MONALISA_PORT}
-
-## WHO I AM?
-FQDN=$(hostname -f)
-DOMAIN=$(hostname -d)
 
 ## detect the proper reverse ip and check it is in the list of redirector host definition (for the case of multiple redundant ips)
 # IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
