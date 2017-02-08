@@ -139,41 +139,38 @@ startUp() {
 
 ######################################
 serverinfo() {
+  ## Network information and validity checking
+  MYNET=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/ip.jsp)
+  MYIP=$(echo "${MYNET}" | /bin/awk '/IP/ {gsub("IP:","",$1); print $1}')
+  REVERSE=$(echo "${MYNET}" | /bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1}')
+
+  ## make sure the exit public ip is locally configured
+  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
+  found_at=$(expr index "${ip_list}" "$MYIP")
+  [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
+
+  ## what is my local set hostname
+  [[ -z "$myhost" ]] && myhost=$(/bin/hostname -f)
+  [[ -z "$myhost" ]] && myhost=$(/bin/hostname)
+  [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
+
+  ## make sure the locally configured hostname is the same with the external one
+  [[ "$myhost" != "$REVERSE" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $REVERSE" && exit 10; }
+  echo "The fully qualified hostname appears to be $myhost"
+
   ## Find information about site from ML
-  MONALISA_HOST_INFO=$(/usr/bin/host $(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}' ) )
-  MONALISA_HOST=$(echo "$MONALISA_HOST_INFO" | /bin/awk '{ print substr ($NF,1,length($NF)-1);}' )
+  MONALISA_IP=$(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}')
+  MONALISA_FQDN=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
 
   se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
+  [[ "${se_info}" == "null" ]] && { echo "The stated SE name ${SE_NAME} is not found to be valid by MonaLisa" && exit 10; }
 
-  MANAGERHOST=$(echo "$se_info" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
-  LOCALPATHPFX=$(echo "$se_info" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
+  MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
+  LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
 
   IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
   ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
   (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
-
-  ## what is my hostname
-  [[ -z "$myhost" ]] && myhost=$(/bin/hostname -f)
-  [[ -z "$myhost" ]] && myhost=$(/bin/hostname)
-  [[ -z "$myhost" ]] && myhost=$HOST
-
-  [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
-
-  ## Network information and validity checking
-  MYIP=$(/usr/bin/dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | /bin/awk -F, '{gsub (/"/,"",$1); print $1;}')
-
-  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
-
-  found_at=$(expr index "$ip_list" "$MYIP")
-  [[ "$found_at" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
-
-  reverse=$(/usr/bin/host ${MYIP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
-  [[ "$myhost" != "$reverse" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $reverse" && exit 10; }
-
-  echo "The fully qualified hostname appears to be $myhost"
-
-  #echo "host = "$myhost
-  #echo "reverse = "$reverse
 
   ##  What i am?
   # default role - server
