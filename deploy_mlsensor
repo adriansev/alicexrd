@@ -11,12 +11,12 @@ SE_NAME=$1
 XRD_PORT=$(ss -ltnp | awk '/xrootd/ { n=split($4,listening,":");print listening[n];}')
 
 ## if still not defined check and query local running xrootd server
-if [[ -z "${SE_NAME}" ]] ; then  
+if [[ -z "${SE_NAME}" ]] ; then
     ## if server port(s) found try each one until SE_NAME is defined (if manager+server first one will be the manager)
     for PORT in "${XRD_PORT}"; do [[ -z "${SE_NAME}" ]] && SE_NAME=$(/usr/bin/xrdfs localhost:${PORT} query config sitename); done
 fi
 
-[[ -z "${SE_NAME}" ]] { echo "SE name is not defined; use it as argument, export ALICEXRD_SE_NAME, or define it the configuration of _RUNNING_ xrootd server" && exit 10; }
+[[ -z "${SE_NAME}" ]] && { echo "SE name is not defined; use it as argument, export ALICEXRD_SE_NAME, or define it the configuration of _RUNNING_ xrootd server" && exit 10; }
 
 echo "Found SE_NAME=${SE_NAME}"
 
@@ -64,7 +64,7 @@ MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root:/
 
 ###############################################################################################
 ###   DEPLOY MLSensor
-cd $(/bin/dirname ${MLSENSOR_HOME})
+cd $(/usr/bin/dirname ${MLSENSOR_HOME})
 
 ## first download the MLSensor
 rm -rf /tmp/MLSensor.tgz
@@ -79,6 +79,7 @@ MLSENSOR_FOUND_HOME=$(ps -C java -o args= | awk '/MLSENSOR_HOME/ { for ( x = 1; 
 
 ## make sure the destination is in place and extract there the MLSensor
 mkdir -p ${MLSENSOR_HOME}
+
 tar -C ${MLSENSOR_HOME}/ --strip-components=1 -xf /tmp/MLSensor.tgz
 
 ########################################
@@ -97,8 +98,8 @@ if [[ -z "${LOCAL_VERSION}" ]] ; then
     /usr/bin/curl -fsSL -o /tmp/jre-latest.tar.gz http://monitor.spacescience.ro/java/jre-latest.tar.gz || { echo "Could not download jre-latest.tar.gz" && exit 1; }
 
     ## create jre directory and extract the latest jre there
-    mkdir -p jre
-    tar -C jre/ --strip-components=1 -xf jre-latest.tar.gz && rm -rf /tmp/jre-latest.tar.gz
+    mkdir -p ${MLSENSOR_HOME}/jre
+    tar -C ${MLSENSOR_HOME}/jre/ --strip-components=1 -xf /tmp/jre-latest.tar.gz && rm -rf /tmp/jre-latest.tar.gz
 
     replace_in_file ${MLSENSOR_HOME}/etc/mlsensor_env "#JAVA_HOME=" "export JAVA_HOME=${MLSENSOR_HOME}/jre\n\nexport PATH=\$JAVA_HOME/bin:\$PATH"
 else
@@ -143,10 +144,10 @@ fi
 #########################################
 
 ## Set the target MonaLisa aggregator
-replace_in_file MLSensor/etc/mlsensor.properties "localhost:56884" "${ML_DEST}"
-replace_in_file MLSensor/etc/mlsensor.properties "cluster.name=MLSensor"      "cluster.name=${SE_NAME}"
-replace_in_file MLSensor/etc/mlsensor.properties "cluster.name.dynamic=true"  "cluster.name.dynamic=false"
-replace_in_file MLSensor/etc/mlsensor.properties "cluster.name.suffix=_Nodes" "cluster.name.suffix=_xrootd_Nodes"
+replace_in_file ${MLSENSOR_HOME}/etc/mlsensor.properties "localhost:56884" "${ML_DEST}"
+replace_in_file ${MLSENSOR_HOME}/etc/mlsensor.properties "cluster.name=MLSensor"      "cluster.name=${SE_NAME}"
+replace_in_file ${MLSENSOR_HOME}/etc/mlsensor.properties "cluster.name.dynamic=true"  "cluster.name.dynamic=false"
+replace_in_file ${MLSENSOR_HOME}/etc/mlsensor.properties "cluster.name.suffix=_Nodes" "cluster.name.suffix=_xrootd_Nodes"
 
 ## add specific xrootd monitoring to MLSensor
 (
@@ -160,7 +161,7 @@ echo "monXrdSpace.execDelay=300"
 echo
 echo "# Change this to the full path to xrd if it cannot be found in PATH, and replace 1094 with redirector port number"
 echo "lia.Monitor.modules.monXrdSpace.args=xrd 1094"
-) >> MLSensor/etc/mlsensor.properties
+) >> ${MLSENSOR_HOME}/etc/mlsensor.properties
 
 if [[ "${is_manager}" == "1" ]] ; then
     (
@@ -168,7 +169,7 @@ if [[ "${is_manager}" == "1" ]] ; then
     echo "# Monitor xrootd disk space usage"
     echo "# ************* IMPORTANT: only enable the following line on the redirector itself"
     echo "mlsensor.modules=monXrdSpace"
-    ) >> MLSensor/etc/mlsensor.properties
+    ) >> ${MLSENSOR_HOME}/etc/mlsensor.properties
 fi
 
 echo "!!!!!!! CHECK MLSensor/etc/mlsensor.properties to be sure that settings are ok!!!!!!!!!!!!"
