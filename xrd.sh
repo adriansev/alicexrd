@@ -67,21 +67,10 @@ SCRIPTUSER=$USER
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
 XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
 
-## if xrd.sh is started by root get the home of the designated xrd user
-if [[ "$USER" == "root" ]]; then
-    USER=$XRDUSER
-    XRDHOME=$(su $XRDUSER  -c "/bin/echo \\\$HOME")
-    cd "$XRDHOME"
+## get the home dir of the designated xrd user
+XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}')
+[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user $XRDUSER"; exit 10;}
 
-    if [ $? -eq 0 ]; then
-        echo -n ""
-    else
-        echo Fatal: user '$XRDUSER' does not exist - check your system.conf - abort
-        exit
-    fi
-else
-    XRDHOME=$HOME
-fi
 }
 
 ##########  FUNCTIONS   #############
