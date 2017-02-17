@@ -393,32 +393,54 @@ killXRD() {
 }
 
 ######################################
+create_limits_conf () {
+set_system
+
+local FILE="99-xrootd_limits.conf"
+
+echo "The generated file ${FILE} should be placed in /etc/security/limits.d/"
+
+cat > ${FILE} <<EOF
+${XRDUSER}         hard    nofile          65536
+${XRDUSER}         soft    nofile          65536
+
+${XRDUSER}         hard    nproc          1024
+${XRDUSER}         soft    nproc          1024
+
+EOF
+
+echo "Generated file is ${FILE} with content :"
+cat ${FILE}
+
+echo "try : sudo cp ${FILE} /etc/security/limits.d/"
+}
+
+######################################
 execEnvironment() {
     /bin/mkdir -p ${XRDRUNDIR}/logs/
     /bin/mkdir -p ${XRDRUNDIR}/core/${USER}_$1
     /bin/mkdir -p ${XRDRUNDIR}/admin/
 
-    cd ${XRDRUNDIR}/core/${USER}_$1
+    ULIM_OPENF=$(ulimit -n)
+    ULIM_USR_PROC=$(ulimit -u)
 
-#    if [ $USER = "root" ]; then
-#       EXECENV="ulimit -n ${XRDMAXFD};ulimit -c unlimited;"
-#    else
-#       EXECENV="ulimit -c unlimited;"
-#    fi
-
-    EXECENV="ulimit -c unlimited;"
     ulimit -n ${XRDMAXFD}
 
-    fdmax=$(ulimit -n)
-    if (( fdmax < 65000 )) ; then
-      echo "Fatal: This machine does not allow more than $fdmax file descriptors. At least 65000 are needed for serious operation - abort"
+    if (( ULIM_OPENF < XRDMAXFD )) ; then
+      echo "Fatal: This machine does not allow more than ${XRDMAXFD} file descriptors. At least 65000 are needed for serious operation"
+      echo "use xrd.sh -limits for generating the limits file"
       exit -1
+    fi
+
+    if (( ULIM_USR_PROC < 512 )); then
+        echo "This machine does not allow more than ${ULIM_USR_PROC} user processes."
+        echo "create a .conf file in /etc/security/limits.d/ with needed settings"
+        echo "use xrd.sh -limits for generating the limits file"
     fi
 
     /bin/chown -R $XRDUSER ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
     /bin/chmod -R 755 ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
 }
-
 
 ######################################
 handlelogs() {
@@ -578,6 +600,8 @@ elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authori
     checkkeys
 elif [[ "$1" == "-addcron" ]]; then  ## add cron line
     addcron # it will remove old xrd.sh line and
+elif [[ "$1" == "-limits" ]]; then  ## generate limits file
+    create_limits_conf
 else
     echo "usage: xrd.sh arg";
     echo "where argument is _one_ of :"
@@ -588,6 +612,7 @@ else
     echo " [-conf] just (re)create configuration";
     echo " [-getkeys] just get keys";
     echo " [-addcron] add/refresh cron line";
+    echo " [-limits] generate limits file";
     echo "";
     echo "Environment variables:";
     echo "  XRDSH_NOWARN_ASLIB  do not warn xrd.sh is sourced"
