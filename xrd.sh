@@ -28,17 +28,14 @@ set_system() {
 
 ## find the location of xrd.sh script
 SOURCE="${BASH_SOURCE[0]}"
+while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
+  XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )"
+  SOURCE="$(readlink "${SOURCE}")"
+  [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)"
 
-# resolve $SOURCE until the file is no longer a symlink
-#while [ -h "$SOURCE" ]; do
-#  XRDSHDIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-#  SOURCE="$(readlink "$SOURCE")"
-#  # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-#  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-#done
-#XRDSHDIR="$( cd -P "$(/usr/bin/dirname "$SOURCE" )" && pwd )"
-
-export XRDSHDIR=$(/usr/bin/dirname $SOURCE)
+export XRDSHDIR
 
 # make sure xrd.sh is executable by user and user group
 /bin/chmod ug+x ${XRDSHDIR}/xrd.sh
