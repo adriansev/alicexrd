@@ -202,6 +202,8 @@ createconf() {
 
     cp -f ${name} ${newname};
 
+    [[ -n "${XRDREADONLY}" ]] && /usr/bin/perl -pi -e 's/\bwritable\b/notwritable/g if /all.export/;' ${newname};
+
     # Set xrootd site name
     /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${newname};
 
