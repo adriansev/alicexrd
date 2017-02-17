@@ -197,43 +197,44 @@ createconf() {
   /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
 
   cd ${XRDCONFDIR}
-  for name in $(/bin/find . -type f -name ".tmp"); do
-    newname=$(echo $name | /bin/sed s/\.tmp// )
-    cp -f $name $newname;
+  for name in $(/bin/find ${XRDCONFDIR} -type f -name "*.tmp"); do
+    newname=$(echo ${name} | /bin/sed s/\.tmp// )
+
+    cp -f ${name} ${newname};
 
     # Set xrootd site name
-    /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${newname};
 
     # Replace XRDSHDIR and XRDRUNDIR
-    /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${newname};
 
     # Substitute all the variables into the templates
-    /usr/bin/perl -pi -e 's/BITARCH/$ENV{BITARCH}/g; s/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g; s/SERVERONREDIRECTOR/$ENV{SERVERONREDIRECTOR}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/BITARCH/$ENV{BITARCH}/g; s/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g; s/SERVERONREDIRECTOR/$ENV{SERVERONREDIRECTOR}/g;' ${newname};
 
     # write storage partitions
-    /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${XRDCONFDIR}/$newname;
+    /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${newname};
 
     # if [ -n "$OSSCACHE" ] ; then
-    #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> ${XRDCONFDIR}/$newname
+    #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> $newname
     # fi
 
     # Monalisa stuff which has to be commented out in some cases
     if [[ -n "$MONALISA_HOST" ]] ; then
-      /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${newname};
     else
-      /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${newname};
     fi
 
     # XrdAcc stuff which has to be commented out in some cases
     if [[ -n "$ACCLIB" ]] ; then
-      /usr/bin/perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${newname}
     else
-      /usr/bin/perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${newname}
     fi
 
     # Xrdn2n stuff which has to be commented out in some cases
     if [[ -z "$LOCALPATHPFX" ]] ; then
-      /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${XRDCONFDIR}/$newname
+      /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${newname}
     fi
 
   done;
@@ -250,7 +251,6 @@ createconf() {
     fi
   fi;
 
-  /bin/rm -f $(find ${XRDCONFDIR}/ -name "*.template")
   cd -;
 }
 
