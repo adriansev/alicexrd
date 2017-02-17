@@ -1,6 +1,6 @@
 # COMMON section          #
 # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222303
-all.export / r/w
+all.export / writable
 
 # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
 all.role manager

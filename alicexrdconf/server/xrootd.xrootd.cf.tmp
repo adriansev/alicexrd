@@ -1,6 +1,11 @@
 #   COMMON section   #
+
+# DEFAULTS
+# http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930728
+oss.defaults nomig nodread nocheck norcreate nolock
+
 # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222303
-all.export / nolock r/w nocheck norcreate
+all.export / writable
 
 # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
 all.role server
@@ -82,8 +87,6 @@ cms.delay servers 1 startup 10
 cms.sched cpu 10 io 10 space 80
 
 #    OSS Section   #
-# http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930728
-oss.defaults nomig nodread nocheck norcreate nolock
 
 # Specify the way a disk partition is selected for file placement.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930727
