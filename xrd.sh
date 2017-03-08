@@ -23,9 +23,6 @@ set_system() {
 # Define system settings
 # Find configs, dirs, xrduser, ...
 
-# set arch for lib definition
-[[ "$(/bin/arch)" == "x86_64" ]] && export BITARCH=64
-
 ## find the location of xrd.sh script
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
@@ -211,7 +208,7 @@ createconf() {
     /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${newname};
 
     # Substitute all the variables into the templates
-    /usr/bin/perl -pi -e 's/BITARCH/$ENV{BITARCH}/g; s/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g; s/SERVERONREDIRECTOR/$ENV{SERVERONREDIRECTOR}/g;' ${newname};
+    /usr/bin/perl -pi -e 's/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g; s/SERVERONREDIRECTOR/$ENV{SERVERONREDIRECTOR}/g;' ${newname};
 
     # write storage partitions
     /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${newname};

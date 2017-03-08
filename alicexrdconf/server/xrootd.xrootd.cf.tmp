@@ -75,10 +75,10 @@ xrd.network buffsz 0 nodnr
 
 #         Auth Section          #
 #http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222304
-xrootd.seclib /usr/libBITARCH/libXrdSec.so
+xrootd.seclib /usr/lib64/libXrdSec.so
 
 # http://xrootd.org/doc/dev45/sec_config.htm#_Toc464225462
-sec.protocol /usr/libBITARCH unix
+sec.protocol /usr/lib64 unix
 
 # Enable the access control, acc, component.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930710
@@ -86,7 +86,7 @@ ofs.authorize
 
 # Specify the location of the file system authorization interface layer.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930712
-ofs.authlib /usr/libBITARCH/ACCLIB
+ofs.authlib /usr/lib64/ACCLIB
 
 #   CMSD Section   #
 # Manage processing latency.
@@ -109,7 +109,7 @@ oss.fdlimit * max
 
 # The funny ALICE name translation, for the global metamanager to aggregate all the clusters
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930739
-oss.namelib /usr/libBITARCH/libXrdAggregatingName2Name.so LOCALPATHPFX
+oss.namelib /usr/lib64/libXrdAggregatingName2Name.so LOCALPATHPFX
 
 # The metamanager acts as a virtual stager. Beware, internally xrootd strips the trailing slashes so, no point in adding them here
 # Specify where the local file system name space is actually rooted.

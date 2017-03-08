@@ -52,7 +52,7 @@ xrd.network nodnr
 
 # Specify the location of the file system interface layer.
 # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222314
-xrootd.fslib /usr/libBITARCH/libXrdOfs.so
+xrootd.fslib /usr/lib64/libXrdOfs.so
 
 # Enable and set third-party-copy (TPC) parameters.
 # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930723
