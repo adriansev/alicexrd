@@ -455,7 +455,6 @@ killXRD() {
     /bin/sleep 1
     /usr/bin/pkill -9 -u $USER xrootd
     /usr/bin/pkill -9 -u $USER cmsd
-    /usr/bin/pkill -f -u $USER XrdOlbMonPerf
     /usr/bin/pkill -f -u $USER mpxstats
 
     echo_passed;
