@@ -241,18 +241,8 @@ createconf() {
 
   done;
 
-  if [[ ${SYSTEM} == "XROOTD" ]]; then
-    /bin/unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
-    /bin/unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
-  elif [[ ${SYSTEM} == "DPM" ]]; then
-    /bin/unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/server/xrootd.dpm.cf  ${XRDCONFDIR}/server/xrootd.cf;
-    /bin/unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/manager/xrootd.dpm.cf ${XRDCONFDIR}/manager/xrootd.cf;
-
-    if [[ -z "$DPM_HOST" ]]; then
-      echo -e "\n\n##########################################################################\nWarning: you should define DPM_HOST in the environment of user $USER if you want to run with DPM!!!\n##########################################################################\n";
-    fi
-  fi;
-
+  /bin/unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
+  /bin/unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
   cd -;
 }
 
