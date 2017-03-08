@@ -13,8 +13,7 @@ echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
 
 ######################################
 startCMSDserv () {
-
-CFG="$1"
+local CFG="$1"
 
 ## get __XRD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
 eval $(sed -ne '/__CMSD_/p' ${CFG})
