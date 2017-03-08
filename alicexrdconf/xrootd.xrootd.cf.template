@@ -1,0 +1,156 @@
+## CLI starting of services
+__XRD_INSTANCE_NAME="test_serv"
+__XRD_LOG="/tmp/test_xrd.log"
+__XRD_PIDFILE="/tmp/xrd.pid"
+__XRD_DEBUG="-d"
+
+__CMSD_INSTANCE_NAME="test_serv"
+__CMSD_LOG="/tmp/test_cmsd.log"
+__CMSD_PIDFILE="/tmp/cmsd.pid"
+__CMSD_DEBUG="-d"
+
+##########################################################
+## COMMON DEFINITIONS
+
+set -q myName = SITENAME
+set -q myRedirector = MANAGERHOST
+
+set -q portXRDman = XRDMANAGERPORT
+set -q portXRDsrv = XRDSERVERPORT
+set -q portCMSD   = CMSDMANAGERPORT
+
+##########################################################
+##   COMMON SETTINGS   ##
+
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222303
+all.export / writable
+
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222299
+all.sitename $myName
+
+# Specify the manager cmsd location.
+# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
+all.manager $myRedirector $portCMSD
+
+# Specify the location of the administrative communications path.
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222287
+all.adminpath XRDRUNDIR/admin/
+
+# Specify the location of the xrootd.pid file
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222317
+all.pidpath XRDRUNDIR/admin/
+
+# Specify execution tracing options.
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222301
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222320
+#all.trace debug all
+
+# Enable I/O monitoring.
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222316
+xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
+
+# Configure a protocol that xrd is to use for incoming requests.
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222296
+xrd.protocol xrootd *
+
+# Enable window scaling on the monostream connection.
+# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222293
+xrd.network buffsz 0 nodnr
+
+# Enable and set third-party-copy (TPC) parameters.
+# http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930723
+ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
+
+# Manage processing latency.
+# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223045
+cms.delay servers 1 startup 10
+
+# Specify the parameters for the load balancing scheduling algorithm.
+# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223036
+cms.sched cpu 10 io 10 space 80
+
+
+#########################
+##   MANAGER SECTION   ##
+#########################
+if $myRedirector
+
+    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
+    all.role manager
+
+    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222290
+    xrd.port XRDMANAGERPORT
+
+    # Specify how servers are selected for file creation
+    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223038
+    cms.space min 48g 16g
+
+else
+########################
+##   SERVER SECTION   ##
+########################
+
+    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
+    all.role server
+
+    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222290
+    xrd.port XRDSERVERPORT
+
+    # DEFAULTS
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930728
+    oss.defaults nomig nodread nocheck norcreate nolock
+
+    # Specify how asynchronous I/O is to be handled.
+    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222306
+    xrootd.async off
+
+    # Specify how file check sums are computed.
+    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222307
+    xrootd.chksum max 2 md5
+
+    # Specify when threads are created, how many can be created, and when they should be destroyed.
+    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222298
+    xrd.sched mint 32 maxt 2048 avlt 512 idle 780
+
+    # Enable tracing at the oss level.
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930724
+    # Tracing may severely impact performance because all trace messages require
+    # serialization to make sure trace messages are printed in the correct order.
+    ofs.trace open
+
+    # Auth Section  #
+    # Specify the location of the security interface layer. - IS IT NEEDED?
+    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222304
+    xrootd.seclib /usr/lib64/libXrdSec.so
+
+    # Define the characteristics of an authentication protocol.
+    # http://xrootd.org/doc/dev45/sec_config.htm#_Toc464225462
+    sec.protocol /usr/lib64 unix
+
+    # Enable the access control, acc, component.
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930710
+    ofs.authorize
+
+    # Specify the location of the file system authorization interface layer.
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930712
+    ofs.authlib /usr/lib64/ACCLIB
+
+    # Specify the way a disk partition is selected for file placement.
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930727
+    oss.alloc 0 0 0
+
+    # The funny ALICE name translation, for the global metamanager to aggregate all the clusters
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930739
+    oss.namelib /usr/lib64/libXrdAggregatingName2Name.so LOCALPATHPFX
+
+    # The metamanager acts as a virtual stager. Beware, internally xrootd strips the trailing slashes so, no point in adding them here
+    # Specify where the local file system name space is actually rooted.
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930730
+    oss.localroot LOCALROOT
+
+    # Specify the location of a file system that is to be used to hold data files.
+    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930733
+    OSSCACHE
+
+fi
+
