@@ -35,22 +35,6 @@ export XRDDEBUG=""
 
 export XRDMAXFD=65000
 
-#########################################
-# define if you run as: --- overlay to DPM
-#export SYSTEM=DPM
-
-# define the DPM/DPNS_HOST name
-#export DPM_HOST=
-#export DPNS_HOST=
-
-# this is needed to be able to connect with the root identity
-#export CSEC_MECH=ID
-
-# or
-
-# ---- plain xrootd
-export SYSTEM=XROOTD
-
 ##########################################
 # -if redirector and server are the same machine, the ports for xrd and cmsd have to be different
 # -otherwise the default port numbers are used

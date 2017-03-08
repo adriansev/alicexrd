@@ -241,11 +241,7 @@ createconf() {
 
   done;
 
-  if [[ ${SYSTEM} == "XROOTD" ]]; then
-    /bin/unlink ${XRDCONFDIR}/server/xrootd.cf  >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/server/xrootd.xrootd.cf  ${XRDCONFDIR}/server/xrootd.cf;
-    /bin/unlink ${XRDCONFDIR}/manager/xrootd.cf >&/dev/null ; /bin/ln -s ${XRDCONFDIR}/manager/xrootd.xrootd.cf ${XRDCONFDIR}/manager/xrootd.cf;
-  fi;
-
+  /bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
   cd -;
 }
 
