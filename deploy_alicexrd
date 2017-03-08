@@ -32,9 +32,6 @@ ${CURL} ${XRDSHDIR}/alicexrdservices.tmp ${LOCATION}/${BRANCH}/alicexrdservices.
 ${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  ${LOCATION}/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
 ${CURL} ${XRDCONFDIR}/authz.cnf            ${LOCATION}/${BRANCH}/alicexrdconf/authz.cnf
 
-# Manager templates
-${CURL} ${XRDCONFDIR}/manager/xrootd.xrootd.cf.tmp ${LOCATION}/${BRANCH}/alicexrdconf/manager/xrootd.xrootd.cf.tmp
-
-# Server templates
-${CURL} ${XRDCONFDIR}/server/xrootd.xrootd.cf.tmp  ${LOCATION}/${BRANCH}/alicexrdconf/server/xrootd.xrootd.cf.tmp
+# Common configuration template
+${CURL} ${XRDCONFDIR}/xrootd.xrootd.cf.tmp ${LOCATION}/${BRANCH}/alicexrdconf/xrootd.xrootd.cf.tmp
 
