@@ -405,8 +405,16 @@ echo "${filename%.*}" "${extension}"
 }
 
 ######################################
+cfg_set_value () {
+local CFGFILE="$1"
+local KEY="$2"
+local VALUE="$3"
+sed -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+}
+
+######################################
 startXRDserv () {
-CFG="$1"
+local CFG="$1"
 
 ## get __XRD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
 eval $(sed -ne '/__XRD_/p' ${CFG})
@@ -423,7 +431,7 @@ eval ${XRD_START}
 
 ######################################
 startCMSDserv () {
-CFG="$1"
+local CFG="$1"
 
 ## get __CMSD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
 eval $(sed -ne '/__CMSD_/p' ${CFG})
