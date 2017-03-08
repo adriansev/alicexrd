@@ -376,6 +376,77 @@ startMon() {
 }
 
 ######################################
+startXRDserv_help () {
+echo "This wrapper for starting of _xrootd_ services use the following _required_ variables defined in the configuration"
+echo "__XRD_INSTANCE_NAME= name of the xrootd instance - required"
+echo "__XRD_LOG= xrootd log file - required"
+echo "__XRD_PIDFILE= xrootd pid file - required"
+echo "__XRD_DEBUG= if defined enable debug mode - optional"
+echo "for detailed explanation of arguments taken by xrd and cmsd see:"
+echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
+}
+
+######################################
+startCMSDserv_help () {
+echo "This wrapper for starting of _cmsd_ services use the following _required_ variables defined in the configuration"
+echo "__CMSD_INSTANCE_NAME= name of the cmsd instance - required"
+echo "__CMSD_LOG= cmsd log file - required"
+echo "__CMSD_PIDFILE= cmsd pid file - required"
+echo "__CMSD_DEBUG= if defined enable debug mode - optional"
+echo "for detailed explanation of arguments taken by xrd and cmsd see:"
+echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
+}
+
+######################################
+get_name_extension () {
+local filename="${1##*/}"
+local extension="${1##*.}"
+echo "${filename%.*}" "${extension}"
+}
+
+######################################
+cfg_set_value () {
+local CFGFILE="$1"
+local KEY="$2"
+local VALUE="$3"
+sed -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+}
+
+######################################
+startXRDserv () {
+local CFG="$1"
+
+## get __XRD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
+eval $(sed -ne '/__XRD_/p' ${CFG})
+
+## make sure that they are defined
+[[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
+
+## not matter how is enabled the debug mode means -d
+[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
+
+local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
+eval ${XRD_START}
+}
+
+######################################
+startCMSDserv () {
+local CFG="$1"
+
+## get __CMSD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
+eval $(sed -ne '/__CMSD_/p' ${CFG})
+
+## make sure that they are defined
+[[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
+
+## not matter how is enabled the debug mode means -d
+[[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
+
+local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
+eval ${CMSD_START}
+}
+
+######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
 

@@ -1,3 +1,14 @@
+## CLI starting of services
+__XRD_INSTANCE_NAME="test_mgr"
+__XRD_LOG="/tmp/test_xrd_mgr.log"
+__XRD_PIDFILE="/tmp/xrd_mgr.pid"
+__XRD_DEBUG="-d"
+
+__CMSD_INSTANCE_NAME="test_mgr"
+__CMSD_LOG="/tmp/test_cmsd_mgr.log"
+__CMSD_PIDFILE="/tmp/cmsd_mgr.pid"
+__CMSD_DEBUG="-d"
+
 # COMMON section          #
 # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222303
 all.export / writable
