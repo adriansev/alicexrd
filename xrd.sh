@@ -19,6 +19,7 @@ check_prerequisites() {
 [ ! -e "/usr/bin/bzip2" ] && { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
 }
 
+######################################
 set_system() {
 # Define system settings
 # Find configs, dirs, xrduser, ...
@@ -118,6 +119,16 @@ startUp() {
       # test $? -eq 0 && echo_success || echo_failure
       echo
     fi
+}
+
+######################################
+getPidFiles_xrd () {
+ps -o args= $(pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}'
+}
+
+######################################
+getPidFiles_cmsd () {
+ps -o args= $(pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}'
 }
 
 ######################################
