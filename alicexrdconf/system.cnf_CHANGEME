@@ -23,10 +23,6 @@ export LOCALROOT='/CHANGE_ME_FIRST_STORAGE_PARTITION/xrdnamespace'
 export OSSCACHE='oss.space public /CHANGE_ME_1/xrddata\noss.space public /CHANGE_ME_2/xrddata\noss.space public /CHANGE_ME_3/xrddata'
 
 ###########################################################################################################################################
-
-# if you run redirector and server on the same machine, set this line properly
-export SERVERONREDIRECTOR="0"
-
 # run without debug
 export XRDDEBUG=""
 
