@@ -154,7 +154,7 @@ serverinfo() {
 
   ## Find information about site from ML
   MONALISA_IP=$(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}')
-  MONALISA_FQDN=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
+  MONALISA_HOST=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
 
   se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
   [[ "${se_info}" == "null" ]] && { echo "The stated SE name ${SE_NAME} is not found to be valid by MonaLisa" && exit 10; }
