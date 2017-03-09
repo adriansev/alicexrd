@@ -403,7 +403,7 @@ cfg_set_value () {
 local CFGFILE="$1"
 local KEY="$2"
 local VALUE="$3"
-sed -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+sed --follow-symlinks -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
 }
 
 ######################################
@@ -533,29 +533,47 @@ restartXRD() {
     echo restartXRD
     killXRD
 
+    local CFG=""
+    local INSTANCE_NAME=""
     if [[ "$manager" == "yes" ]]; then
-      (
-      execEnvironment manager || exit
-
-      echo -n "Starting xrootd [manager]: "
-      startUp /usr/bin/xrootd -n manager -b $XRDDEBUG -l ${XRDRUNDIR}/logs/xrdlog -c ${XRDCONFDIR}/manager/xrootd.cf -s ${XRDRUNDIR}/admin/xrd_mgr.pid
-
-      echo -n "Starting cmsd   [manager]: "
-      startUp /usr/bin/cmsd   -n manager -b $XRDDEBUG -l ${XRDRUNDIR}/logs/cmslog -c ${XRDCONFDIR}/manager/xrootd.cf -s ${XRDRUNDIR}/admin/cmsd_mgr.pid
-      )
+        CFG=${XRDCONFDIR}/manager/xrootd.cf
+        INSTANCE_NAME="manager"
+    else
+        CFG=${XRDCONFDIR}/server/xrootd.cf
+        INSTANCE_NAME="server"
     fi
 
-    if [[ "$server" == "yes" ]]; then
-      (
-      execEnvironment server || exit
+    execEnvironment ${INSTANCE_NAME} || exit
 
-      echo -n "Starting xrootd [server]: "
-      startUp /usr/bin/xrootd -n server -b $XRDDEBUG -l ${XRDRUNDIR}/logs/xrdlog -c ${XRDCONFDIR}/server/xrootd.cf -s ${XRDRUNDIR}/admin/xrd_svr.pid
-
-      echo -n "Starting cmsd   [server]: "
-      startUp /usr/bin/cmsd   -n server -b $XRDDEBUG -l ${XRDRUNDIR}/logs/cmslog -c ${XRDCONFDIR}/server/xrootd.cf -s ${XRDRUNDIR}/admin/cmsd_svr.pid
-      )
+    ## set the debug value in configuration file
+    if [[ -n "${XRDDEBUG}" ]]; then
+        cfg_set_value ${CFG}  __XRD_DEBUG yes
+        cfg_set_value ${CFG} __CMSD_DEBUG yes
     fi
+
+    ## set the instance name for both processes xrootd and cmsd
+    cfg_set_value ${CFG}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
+    cfg_set_value ${CFG} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
+
+    ## set the xrootd and cmsd log file
+    ## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
+    local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
+    local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
+    cfg_set_value ${CFG}  __XRD_LOG ${XRD_LOG}
+    cfg_set_value ${CFG} __CMSD_LOG ${CMSD_LOG}
+
+    ## set the xrootd and cmsd PID file
+    local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
+    local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
+    cfg_set_value ${CFG}  __XRD_PIDFILE ${XRD_PIDFILE}
+    cfg_set_value ${CFG} __CMSD_PIDFILE ${CMSD_PIDFILE}
+
+    ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
+    echo -n "Starting xrootd [${INSTANCE_NAME}]: "
+    startUp startXRDserv ${CFG}
+
+    echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
+    startUp startCMSDserv ${CFG}
 
     startMon
     sleep 1 ## need delay for starMon
