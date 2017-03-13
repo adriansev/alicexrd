@@ -132,6 +132,77 @@ ps -o args= $(pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s
 }
 
 ######################################
+get_name_extension () {
+local filename="${1##*/}"
+local extension="${1##*.}"
+echo "${filename%.*}" "${extension}"
+}
+
+######################################
+cfg_set_value () {
+local CFGFILE="$1"
+local KEY="$2"
+local VALUE="$3"
+sed --follow-symlinks -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+}
+
+######################################
+startXRDserv_help () {
+echo "This wrapper for starting of _xrootd_ services use the following _required_ variables defined in the configuration"
+echo "__XRD_INSTANCE_NAME= name of the xrootd instance - required"
+echo "__XRD_LOG= xrootd log file - required"
+echo "__XRD_PIDFILE= xrootd pid file - required"
+echo "__XRD_DEBUG= if defined enable debug mode - optional"
+echo "for detailed explanation of arguments taken by xrd and cmsd see:"
+echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
+}
+
+######################################
+startCMSDserv_help () {
+echo "This wrapper for starting of _cmsd_ services use the following _required_ variables defined in the configuration"
+echo "__CMSD_INSTANCE_NAME= name of the cmsd instance - required"
+echo "__CMSD_LOG= cmsd log file - required"
+echo "__CMSD_PIDFILE= cmsd pid file - required"
+echo "__CMSD_DEBUG= if defined enable debug mode - optional"
+echo "for detailed explanation of arguments taken by xrd and cmsd see:"
+echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
+}
+
+######################################
+startXRDserv () {
+local CFG="$1"
+
+## get __XRD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
+eval $(sed -ne '/__XRD_/p' ${CFG})
+
+## make sure that they are defined
+[[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
+
+## not matter how is enabled the debug mode means -d
+[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
+
+local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
+eval ${XRD_START}
+}
+
+######################################
+startCMSDserv () {
+local CFG="$1"
+
+## get __CMSD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
+eval $(sed -ne '/__CMSD_/p' ${CFG})
+
+## make sure that they are defined
+[[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
+
+## not matter how is enabled the debug mode means -d
+[[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
+
+local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
+eval ${CMSD_START}
+}
+
+######################################
 serverinfo() {
   ## Network information and validity checking
   MYNET=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/ip.jsp)
@@ -176,6 +247,13 @@ serverinfo() {
     server="";
   fi
 
+  if [[ "$manager" == "yes" ]]; then
+    INSTANCE_NAME="manager"
+  else
+    INSTANCE_NAME="server"
+  fi
+
+  export INSTANCE_NAME
   export MONALISA_HOST
   export MANAGERHOST
   export LOCALPATHPFX
@@ -243,12 +321,43 @@ createconf() {
       /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${newname}
     fi
 
+    ## set the debug value in configuration file
+    if [[ -n "${XRDDEBUG}" ]]; then
+        cfg_set_value ${newname}  __XRD_DEBUG yes
+        cfg_set_value ${newname} __CMSD_DEBUG yes
+    fi
+
+    ## set the instance name for both processes xrootd and cmsd
+    cfg_set_value ${newname}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
+    cfg_set_value ${newname} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
+
+    ## set the xrootd and cmsd log file
+    ## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
+    local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
+    local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
+    cfg_set_value ${newname}  __XRD_LOG ${XRD_LOG}
+    cfg_set_value ${newname} __CMSD_LOG ${CMSD_LOG}
+
+    ## set the xrootd and cmsd PID file
+    local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
+    local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
+    cfg_set_value ${newname}  __XRD_PIDFILE ${XRD_PIDFILE}
+    cfg_set_value ${newname} __CMSD_PIDFILE ${CMSD_PIDFILE}
+
   done;
 
   /bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
   cd -;
 }
 
+######################################
+bootstrap() {
+  createconf
+  /bin/mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
+  [[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
+}
+
+######################################
 ## create TkAuthz.Authorization file; take as argument the place where are the public keys
 create_tkauthz() {
   local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
@@ -329,12 +438,6 @@ addcron() {
   /bin/rm -f ${cron_file};
 }
 
-######################################
-bootstrap() {
-  createconf
-  /bin/mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
-  [[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
-}
 
 ######################################
 getSrvToMon() {
@@ -369,95 +472,6 @@ startMon() {
 }
 
 ######################################
-startXRDserv_help () {
-echo "This wrapper for starting of _xrootd_ services use the following _required_ variables defined in the configuration"
-echo "__XRD_INSTANCE_NAME= name of the xrootd instance - required"
-echo "__XRD_LOG= xrootd log file - required"
-echo "__XRD_PIDFILE= xrootd pid file - required"
-echo "__XRD_DEBUG= if defined enable debug mode - optional"
-echo "for detailed explanation of arguments taken by xrd and cmsd see:"
-echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
-}
-
-######################################
-startCMSDserv_help () {
-echo "This wrapper for starting of _cmsd_ services use the following _required_ variables defined in the configuration"
-echo "__CMSD_INSTANCE_NAME= name of the cmsd instance - required"
-echo "__CMSD_LOG= cmsd log file - required"
-echo "__CMSD_PIDFILE= cmsd pid file - required"
-echo "__CMSD_DEBUG= if defined enable debug mode - optional"
-echo "for detailed explanation of arguments taken by xrd and cmsd see:"
-echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
-}
-
-######################################
-get_name_extension () {
-local filename="${1##*/}"
-local extension="${1##*.}"
-echo "${filename%.*}" "${extension}"
-}
-
-######################################
-cfg_set_value () {
-local CFGFILE="$1"
-local KEY="$2"
-local VALUE="$3"
-sed --follow-symlinks -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
-}
-
-######################################
-startXRDserv () {
-local CFG="$1"
-
-## get __XRD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
-eval $(sed -ne '/__XRD_/p' ${CFG})
-
-## make sure that they are defined
-[[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
-
-## not matter how is enabled the debug mode means -d
-[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
-
-local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
-eval ${XRD_START}
-}
-
-######################################
-startCMSDserv () {
-local CFG="$1"
-
-## get __CMSD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
-eval $(sed -ne '/__CMSD_/p' ${CFG})
-
-## make sure that they are defined
-[[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
-
-## not matter how is enabled the debug mode means -d
-[[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
-
-local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
-eval ${CMSD_START}
-}
-
-######################################
-killXRD() {
-    echo -n "Stopping xrootd/cmsd: "
-
-    /usr/bin/pkill -u $USER xrootd
-    /usr/bin/pkill -u $USER cmsd
-    /bin/sleep 1
-    /usr/bin/pkill -9 -u $USER xrootd
-    /usr/bin/pkill -9 -u $USER cmsd
-    /usr/bin/pkill -f -u $USER mpxstats
-
-    echo_passed;
-    echo
-
-    echo -n "Stopping ApMon:"
-    servMon -k
-}
-
-######################################
 create_limits_conf () {
 set_system
 
@@ -478,6 +492,26 @@ echo "Generated file is ${FILE} with content :"
 cat ${FILE}
 
 echo "try : sudo cp ${FILE} /etc/security/limits.d/"
+}
+
+######################################
+handlelogs() {
+  cd ${XRDRUNDIR}
+  /bin/mkdir -p ${XRDRUNDIR}/logsbackup
+  local LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
+  #local todaynow=$(date +%Y%m%d_%k%M%S)
+
+  cd ${XRDRUNDIR}/logs
+  not_compressed=$(/bin/find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
+
+  if [[ ! -f ${LOCK} ]]; then
+    touch ${LOCK}
+    for log in $not_compressed; do /usr/bin/bzip2 -9fq $log; done
+    /bin/rm -f ${LOCK}
+  fi
+
+  # move compressed to logs backup
+  mv -f ${XRDRUNDIR}/logs/*/*.bz2 ${XRDRUNDIR}/logsbackup/ &> /dev/null
 }
 
 ######################################
@@ -508,23 +542,21 @@ execEnvironment() {
 }
 
 ######################################
-handlelogs() {
-  cd ${XRDRUNDIR}
-  /bin/mkdir -p ${XRDRUNDIR}/logsbackup
-  local LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
-  #local todaynow=$(date +%Y%m%d_%k%M%S)
+killXRD() {
+    echo -n "Stopping xrootd/cmsd: "
 
-  cd ${XRDRUNDIR}/logs
-  not_compressed=$(/bin/find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
+    /usr/bin/pkill -u $USER xrootd
+    /usr/bin/pkill -u $USER cmsd
+    /bin/sleep 1
+    /usr/bin/pkill -9 -u $USER xrootd
+    /usr/bin/pkill -9 -u $USER cmsd
+    /usr/bin/pkill -f -u $USER mpxstats
 
-  if [[ ! -f ${LOCK} ]]; then
-    touch ${LOCK}
-    for log in $not_compressed; do /usr/bin/bzip2 -9fq $log; done
-    /bin/rm -f ${LOCK}
-  fi
+    echo_passed;
+    echo
 
-  # move compressed to logs backup
-  mv -f ${XRDRUNDIR}/logs/*/*.bz2 ${XRDRUNDIR}/logsbackup/ &> /dev/null
+    echo -n "Stopping ApMon:"
+    servMon -k
 }
 
 ######################################
@@ -532,55 +564,21 @@ restartXRD() {
     echo restartXRD
     killXRD
 
-    local CFG=""
-    local INSTANCE_NAME=""
-    if [[ "$manager" == "yes" ]]; then
-        CFG=${XRDCONFDIR}/manager/xrootd.cf
-        INSTANCE_NAME="manager"
-    else
-        CFG=${XRDCONFDIR}/server/xrootd.cf
-        INSTANCE_NAME="server"
-    fi
-
     execEnvironment ${INSTANCE_NAME} || exit
-
-    ## set the debug value in configuration file
-    if [[ -n "${XRDDEBUG}" ]]; then
-        cfg_set_value ${CFG}  __XRD_DEBUG yes
-        cfg_set_value ${CFG} __CMSD_DEBUG yes
-    fi
-
-    ## set the instance name for both processes xrootd and cmsd
-    cfg_set_value ${CFG}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
-    cfg_set_value ${CFG} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
-
-    ## set the xrootd and cmsd log file
-    ## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
-    local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
-    local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
-    cfg_set_value ${CFG}  __XRD_LOG ${XRD_LOG}
-    cfg_set_value ${CFG} __CMSD_LOG ${CMSD_LOG}
-
-    ## set the xrootd and cmsd PID file
-    local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
-    local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
-    cfg_set_value ${CFG}  __XRD_PIDFILE ${XRD_PIDFILE}
-    cfg_set_value ${CFG} __CMSD_PIDFILE ${CMSD_PIDFILE}
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
     echo -n "Starting xrootd [${INSTANCE_NAME}]: "
-    startUp startXRDserv ${CFG}
+    startUp startXRDserv ${XRDCONFDIR}/xrootd.cf
 
     echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
-    startUp startCMSDserv ${CFG}
+    startUp startCMSDserv ${XRDCONFDIR}/xrootd.cf
 
     startMon
     sleep 1 ## need delay for starMon
 }
 
 ######################################
-checkstate()
-{
+checkstate() {
 echo "******************************************"
 date
 echo "******************************************"
