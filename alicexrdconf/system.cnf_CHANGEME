@@ -46,3 +46,14 @@ export CMSDSERVERPORT=3122
 #########################################
 export ACCLIB=libXrdAliceTokenAcc.so
 
+## CLI starting of services
+__XRD_INSTANCE_NAME="test_serv"
+__XRD_LOG="/tmp/test_xrd.log"
+__XRD_PIDFILE="/tmp/xrd.pid"
+__XRD_DEBUG=""
+
+__CMSD_INSTANCE_NAME="test_serv"
+__CMSD_LOG="/tmp/test_cmsd.log"
+__CMSD_PIDFILE="/tmp/cmsd.pid"
+__CMSD_DEBUG=""
+

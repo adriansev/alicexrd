@@ -1,6 +1,66 @@
 #!/bin/bash
 
 ######################################
+serverinfo() {
+  ## Network information and validity checking
+  MYNET=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/ip.jsp)
+  MYIP=$(echo "${MYNET}" | /bin/awk '/IP/ {gsub("IP:","",$1); print $1}')
+  REVERSE=$(echo "${MYNET}" | /bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1}')
+
+  ## make sure the exit public ip is locally configured
+  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
+  found_at=$(expr index "${ip_list}" "$MYIP")
+  [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
+
+  ## what is my local set hostname
+  [[ -z "$myhost" ]] && myhost=$(/bin/hostname -f)
+  [[ -z "$myhost" ]] && myhost=$(/bin/hostname)
+  [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
+
+  ## make sure the locally configured hostname is the same with the external one
+  [[ "$myhost" != "$REVERSE" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $REVERSE" && exit 10; }
+  echo "The fully qualified hostname appears to be $myhost"
+
+  ## Find information about site from ML
+  MONALISA_IP=$(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}')
+  MONALISA_HOST=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
+
+  se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
+  [[ "${se_info}" == "null" ]] && { echo "The stated SE name ${SE_NAME} is not found to be valid by MonaLisa" && exit 10; }
+
+  MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
+  LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
+
+  IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
+  ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
+  (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
+
+  ##  What i am?
+  # default role - server
+  server="yes"; manager=""; nproc=1;
+
+  # unless i am manager
+  if [[ "x$myhost" == "x$MANAGERHOST" ]]; then
+    manager="yes";
+    server="";
+  fi
+
+  if [[ "$manager" == "yes" ]]; then
+    INSTANCE_NAME="manager"
+  else
+    INSTANCE_NAME="server"
+  fi
+
+  export INSTANCE_NAME
+  export MONALISA_HOST
+  export MANAGERHOST
+  export LOCALPATHPFX
+  export manager
+  export server
+  export nproc
+}
+
+######################################
 set_formatters() {
 BOOTUP=color
 RES_COL=60
@@ -20,7 +80,7 @@ check_prerequisites() {
 }
 
 ######################################
-set_system() {
+getLocations () {
 # Define system settings
 # Find configs, dirs, xrduser, ...
 
@@ -47,7 +107,41 @@ XRDCONFDIR=${XRDCONFDIR:-$XRDSHDIR/xrootd.conf/}
 export XRDCONFDIR
 
 ## LOCATIONS AND INFORMATIONS
-export XRDCONF="$XRDCONFDIR/system.cnf"
+export XRDCONF="${XRDCONFDIR}/system.cnf"
+source ${XRDCONF}
+}
+
+######################################
+set_system () {
+getLocations
+
+# Get all upstream server info (after first source of system.cnf)
+serverinfo
+
+## set the debug value in configuration file
+if [[ -n "${XRDDEBUG}" ]]; then
+    cfg_set_value ${XRDCONF}  __XRD_DEBUG yes
+    cfg_set_value ${XRDCONF} __CMSD_DEBUG yes
+fi
+
+## set the instance name for both processes xrootd and cmsd
+cfg_set_value ${XRDCONF}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
+cfg_set_value ${XRDCONF} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
+
+## set the xrootd and cmsd log file
+## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
+local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
+local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
+cfg_set_value ${XRDCONF}  __XRD_LOG ${XRD_LOG}
+cfg_set_value ${XRDCONF} __CMSD_LOG ${CMSD_LOG}
+
+## set the xrootd and cmsd PID file
+local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
+local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
+cfg_set_value ${XRDCONF}  __XRD_PIDFILE ${XRD_PIDFILE}
+cfg_set_value ${XRDCONF} __CMSD_PIDFILE ${CMSD_PIDFILE}
+
+## second sourcing of system.cnf
 source ${XRDCONF}
 
 # ApMon files
@@ -172,7 +266,7 @@ echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
 startXRDserv () {
 local CFG="$1"
 
-## get __XRD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
+## get __XRD_ server arguments from config file.
 eval $(sed -ne '/__XRD_/p' ${CFG})
 
 ## make sure that they are defined
@@ -189,7 +283,7 @@ eval ${XRD_START}
 startCMSDserv () {
 local CFG="$1"
 
-## get __CMSD_ server arguments from config file. (are ignored by the actual xrd/cmsd)
+## get __CMSD_ server arguments from config file.
 eval $(sed -ne '/__CMSD_/p' ${CFG})
 
 ## make sure that they are defined
@@ -202,70 +296,10 @@ local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l
 eval ${CMSD_START}
 }
 
-######################################
-serverinfo() {
-  ## Network information and validity checking
-  MYNET=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/ip.jsp)
-  MYIP=$(echo "${MYNET}" | /bin/awk '/IP/ {gsub("IP:","",$1); print $1}')
-  REVERSE=$(echo "${MYNET}" | /bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1}')
-
-  ## make sure the exit public ip is locally configured
-  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
-  found_at=$(expr index "${ip_list}" "$MYIP")
-  [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
-
-  ## what is my local set hostname
-  [[ -z "$myhost" ]] && myhost=$(/bin/hostname -f)
-  [[ -z "$myhost" ]] && myhost=$(/bin/hostname)
-  [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
-
-  ## make sure the locally configured hostname is the same with the external one
-  [[ "$myhost" != "$REVERSE" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $REVERSE" && exit 10; }
-  echo "The fully qualified hostname appears to be $myhost"
-
-  ## Find information about site from ML
-  MONALISA_IP=$(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}')
-  MONALISA_HOST=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
-
-  se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
-  [[ "${se_info}" == "null" ]] && { echo "The stated SE name ${SE_NAME} is not found to be valid by MonaLisa" && exit 10; }
-
-  MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
-  LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
-
-  IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
-  ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
-  (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
-
-  ##  What i am?
-  # default role - server
-  server="yes"; manager=""; nproc=1;
-
-  # unless i am manager
-  if [[ "x$myhost" == "x$MANAGERHOST" ]]; then
-    manager="yes";
-    server="";
-  fi
-
-  if [[ "$manager" == "yes" ]]; then
-    INSTANCE_NAME="manager"
-  else
-    INSTANCE_NAME="server"
-  fi
-
-  export INSTANCE_NAME
-  export MONALISA_HOST
-  export MANAGERHOST
-  export LOCALPATHPFX
-  export manager
-  export server
-  export nproc
-}
 
 ######################################
 createconf() {
   set_system
-  serverinfo
 
   echo "xrdsh dir is : ${XRDSHDIR}"
   echo "xrdconfdir is : ${XRDCONFDIR}"
@@ -321,32 +355,11 @@ createconf() {
       /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${newname}
     fi
 
-    ## set the debug value in configuration file
-    if [[ -n "${XRDDEBUG}" ]]; then
-        cfg_set_value ${newname}  __XRD_DEBUG yes
-        cfg_set_value ${newname} __CMSD_DEBUG yes
-    fi
-
-    ## set the instance name for both processes xrootd and cmsd
-    cfg_set_value ${newname}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
-    cfg_set_value ${newname} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
-
-    ## set the xrootd and cmsd log file
-    ## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
-    local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
-    local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
-    cfg_set_value ${newname}  __XRD_LOG ${XRD_LOG}
-    cfg_set_value ${newname} __CMSD_LOG ${CMSD_LOG}
-
-    ## set the xrootd and cmsd PID file
-    local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
-    local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
-    cfg_set_value ${newname}  __XRD_PIDFILE ${XRD_PIDFILE}
-    cfg_set_value ${newname} __CMSD_PIDFILE ${CMSD_PIDFILE}
 
   done;
 
   /bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
+
   cd -;
 }
 
@@ -423,7 +436,7 @@ removecron() {
 
 ######################################
 addcron() {
-  set_system # get the main parameters
+  getLocations
   removecron # clean up the old xrd.sh cron line
   cron_file="/tmp/cron.$RANDOM.xrd.sh";
   /usr/bin/crontab -l > ${cron_file}; # get current crontab
@@ -633,9 +646,9 @@ exit $returnval
 ######################
 xrdsh_main() {
 if [[ "$1" == "-c" ]]; then  ## check and restart if not running
+    bootstrap
     addcron # it will remove old xrd.sh line and
     checkkeys
-    bootstrap
 
     ## check the number of xrootd and cmsd processes
     nxrd=$(/usr/bin/pgrep -u $USER xrootd | /usr/bin/wc -l)
@@ -656,12 +669,13 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     [[ -n "$MONALISA_HOST" ]] && servMon
     checkstate
 elif [[ "$1" == "-check" ]]; then
-    serverinfo
+## CLI starting of services
+    bootstrap
     checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
     addcron # it will remove old xrd.sh line and
-    checkkeys
     bootstrap
+    checkkeys
     /bin/date
     echo "(Re-)Starting ...."
     restartXRD
@@ -713,5 +727,4 @@ fi
 
 set_formatters
 check_prerequisites
-set_system
 xrdsh_main "$@"
