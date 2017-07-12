@@ -32,19 +32,13 @@ export XRDDEBUG=""
 export XRDMAXFD=65000
 
 ##########################################
-# -if redirector and server are the same machine, the ports for xrd and cmsd have to be different
-# -otherwise the default port numbers are used
+#   Explicit defined ports for services
 #########################################
 export XRDMANAGERPORT=1094
 export CMSDMANAGERPORT=3122
 
 export XRDSERVERPORT=1094
 export CMSDSERVERPORT=3122
-
-if [ "x$SERVERONREDIRECTOR" = "x1" ]; then
-   export XRDSERVERPORT=1095
-   export CMSDSERVERPORT=3123
-fi
 
 #########################################
 # The XrdAcc library which applies the authorization mechanism
