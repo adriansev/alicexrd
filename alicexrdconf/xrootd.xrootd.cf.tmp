@@ -65,10 +65,9 @@ ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
 # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223045
 cms.delay servers 1 startup 10
 
-# Specify the parameters for the load balancing scheduling algorithm.
-# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223036
-cms.sched cpu 10 io 10 space 80
-
+# Specify how servers are selected for file creation
+# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223038
+cms.space min 48g 16g
 
 #########################
 ##   MANAGER SECTION   ##
@@ -81,9 +80,9 @@ if $myRedirector
     # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222290
     xrd.port XRDMANAGERPORT
 
-    # Specify how servers are selected for file creation
-    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223038
-    cms.space min 48g 16g
+    # Specify the parameters for the load balancing scheduling algorithm.
+    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223036
+    cms.sched cpu 10 io 10 space 80
 
 else
 ########################
