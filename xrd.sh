@@ -31,7 +31,7 @@ serverinfo() {
   MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
   LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
 
-  IS_MANAGER_ALIAS=$(/usr/bin/host ${MANAGERHOST}| wc -l)
+  IS_MANAGER_ALIAS=$(/usr/bin/host -t A ${MANAGERHOST}| wc -l)
   ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
   (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
 
