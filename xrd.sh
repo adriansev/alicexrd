@@ -9,7 +9,7 @@ serverinfo() {
 
   ## make sure the exit public ip is locally configured
   ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
-  found_at=$(expr index "${ip_list}" "$MYIP")
+  found_at=$(expr index "${ip_list}" "${MYIP}")
   [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
 
   ## what is my local set hostname
@@ -31,7 +31,9 @@ serverinfo() {
   MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
   LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
 
-  IS_MANAGER_ALIAS=$(/usr/bin/host -t A ${MANAGERHOST}| wc -l)
+  MANAGER_IP_LIST=$(/usr/bin/host -t A ${MANAGERHOST})
+
+  IS_MANAGER_ALIAS=$(echo ${MANAGER_IP_LIST}| wc -l)
   ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
   (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
 
@@ -40,16 +42,10 @@ serverinfo() {
   server="yes"; manager=""; nproc=1;
 
   # unless i am manager
-  if [[ "x$myhost" == "x$MANAGERHOST" ]]; then
-    manager="yes";
-    server="";
-  fi
+  myip_found_at=$(expr index "${MANAGER_IP_LIST}" "${MYIP}")
+  [[ "${myip_found_at}" != "0" ]] && { manager="yes"; server=""; }
 
-  if [[ "$manager" == "yes" ]]; then
-    INSTANCE_NAME="manager"
-  else
-    INSTANCE_NAME="server"
-  fi
+  [[ "$manager" == "yes" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
 
   export INSTANCE_NAME
   export MONALISA_HOST
