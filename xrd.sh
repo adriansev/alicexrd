@@ -107,56 +107,6 @@ export XRDCONF="${XRDCONFDIR}/system.cnf"
 source ${XRDCONF}
 }
 
-######################################
-set_system () {
-getLocations
-
-# Get all upstream server info (after first source of system.cnf)
-serverinfo
-
-## set the debug value in configuration file
-if [[ -n "${XRDDEBUG}" ]]; then
-    cfg_set_value ${XRDCONF}  __XRD_DEBUG yes
-    cfg_set_value ${XRDCONF} __CMSD_DEBUG yes
-fi
-
-## set the instance name for both processes xrootd and cmsd
-cfg_set_value ${XRDCONF}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
-cfg_set_value ${XRDCONF} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
-
-## set the xrootd and cmsd log file
-## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
-local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
-local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
-cfg_set_value ${XRDCONF}  __XRD_LOG ${XRD_LOG}
-cfg_set_value ${XRDCONF} __CMSD_LOG ${CMSD_LOG}
-
-## set the xrootd and cmsd PID file
-local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
-local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
-cfg_set_value ${XRDCONF}  __XRD_PIDFILE ${XRD_PIDFILE}
-cfg_set_value ${XRDCONF} __CMSD_PIDFILE ${CMSD_PIDFILE}
-
-## second sourcing of system.cnf
-source ${XRDCONF}
-
-# ApMon files
-export apmonPidFile=${XRDRUNDIR}/admin/apmon.pid
-export apmonLogFile=${XRDRUNDIR}/logs/apmon.log
-
-USER=${USER:-$LOGNAME}
-[[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
-
-SCRIPTUSER=$USER
-
-## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
-
-## get the home dir of the designated xrd user
-XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}')
-[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user $XRDUSER"; exit 10;}
-
-}
 
 ##########  FUNCTIONS   #############
 echo_success() {
@@ -237,6 +187,14 @@ sed --follow-symlinks -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
 }
 
 ######################################
+cfg_set_xrdvalue () {
+local CFGFILE="$1"
+local KEY="$2"
+local VALUE="$3"
+sed --follow-symlinks -i "s#^\#@@\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+}
+
+######################################
 startXRDserv_help () {
 echo "This wrapper for starting of _xrootd_ services use the following _required_ variables defined in the configuration"
 echo "__XRD_INSTANCE_NAME= name of the xrootd instance - required"
@@ -263,7 +221,7 @@ startXRDserv () {
 local CFG="$1"
 
 ## get __XRD_ server arguments from config file.
-eval $(sed -ne '/__XRD_/p' ${CFG})
+eval $(sed -ne 's/\#@@//gp;' ${CFG})
 
 ## make sure that they are defined
 [[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
@@ -280,7 +238,7 @@ startCMSDserv () {
 local CFG="$1"
 
 ## get __CMSD_ server arguments from config file.
-eval $(sed -ne '/__CMSD_/p' ${CFG})
+eval $(sed -ne 's/\#@@//gp;' ${CFG})
 
 ## make sure that they are defined
 [[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
@@ -292,6 +250,55 @@ local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l
 eval ${CMSD_START}
 }
 
+######################################
+set_system () {
+getLocations
+
+# Get all upstream server info (after first source of system.cnf)
+serverinfo
+
+local XRDCF="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
+
+## set the debug value in configuration file
+if [[ -n "${XRDDEBUG}" ]]; then
+    cfg_set_xrdvalue ${XRDCF}  __XRD_DEBUG yes
+    cfg_set_xrdvalue ${XRDCF} __CMSD_DEBUG yes
+fi
+
+## set the instance name for both processes xrootd and cmsd
+cfg_set_xrdvalue ${XRDCF}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
+cfg_set_xrdvalue ${XRDCF} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
+
+## set the xrootd and cmsd log file
+## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
+local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
+local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
+cfg_set_xrdvalue ${XRDCF}  __XRD_LOG ${XRD_LOG}
+cfg_set_xrdvalue ${XRDCF} __CMSD_LOG ${CMSD_LOG}
+
+## set the xrootd and cmsd PID file
+local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
+local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
+cfg_set_xrdvalue ${XRDCF}  __XRD_PIDFILE ${XRD_PIDFILE}
+cfg_set_xrdvalue ${XRDCF} __CMSD_PIDFILE ${CMSD_PIDFILE}
+
+# ApMon files
+export apmonPidFile=${XRDRUNDIR}/admin/apmon.pid
+export apmonLogFile=${XRDRUNDIR}/logs/apmon.log
+
+USER=${USER:-$LOGNAME}
+[[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
+
+SCRIPTUSER=$USER
+
+## automatically asume that the owner of location of xrd.sh is XRDUSER
+XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
+
+## get the home dir of the designated xrd user
+XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}')
+[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user $XRDUSER"; exit 10;}
+
+}
 
 ######################################
 createconf() {
