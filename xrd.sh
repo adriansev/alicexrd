@@ -191,7 +191,7 @@ cfg_set_xrdvalue () {
 local CFGFILE="$1"
 local KEY="$2"
 local VALUE="$3"
-sed --follow-symlinks -i "s#^\#@@\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+sed --follow-symlinks -i "s#^\#@@\($KEY\s*=\s*\).*\$#\#@@\1\"$VALUE\"#" ${CFGFILE}
 }
 
 ######################################
@@ -298,80 +298,78 @@ XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
 XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}')
 [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user $XRDUSER"; exit 10;}
 
+#######################
+##   replace detected values in the template conf file
+#######################
+
+echo "xrdsh dir is : ${XRDSHDIR}"
+echo "xrdconfdir is : ${XRDCONFDIR}"
+
+###################
+export osscachetmp=$(echo -e $OSSCACHE);
+
+# Replace XRDSHDIR for service starting
+cd ${XRDSHDIR}
+cp -f alicexrdservices.tmp alicexrdservices;
+/usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
+
+cd ${XRDCONFDIR}
+for name in $(/bin/find ${XRDCONFDIR} -type f -name "*.tmp"); do
+  newname=$(echo ${name} | /bin/sed s/\.tmp// )
+
+  cp -f ${name} ${newname};
+
+  [[ -n "${XRDREADONLY}" ]] && /usr/bin/perl -pi -e 's/\bwritable\b/notwritable/g if /all.export/;' ${newname};
+
+  # Set xrootd site name
+  /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${newname};
+
+  # Replace XRDSHDIR and XRDRUNDIR
+  /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${newname};
+
+  # Substitute all the variables into the templates
+  /usr/bin/perl -pi -e 's/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g;' ${newname};
+
+  # write storage partitions
+  /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${newname};
+
+  # if [ -n "$OSSCACHE" ] ; then
+  #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> $newname
+  # fi
+
+  # Monalisa stuff which has to be commented out in some cases
+  if [[ -n "$MONALISA_HOST" ]] ; then
+    /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${newname};
+  else
+    /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${newname};
+  fi
+
+  # XrdAcc stuff which has to be commented out in some cases
+  if [[ -n "$ACCLIB" ]] ; then
+    /usr/bin/perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${newname}
+  else
+    /usr/bin/perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${newname}
+  fi
+
+  # Xrdn2n stuff which has to be commented out in some cases
+  if [[ -z "$LOCALPATHPFX" ]] ; then
+    /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${newname}
+  fi
+
+done;
+
+/bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
+cd -;
+
+/bin/mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
+[[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
 }
 
 ######################################
-createconf() {
-  set_system
-
-  echo "xrdsh dir is : ${XRDSHDIR}"
-  echo "xrdconfdir is : ${XRDCONFDIR}"
-
-  ###################
-  export osscachetmp=$(echo -e $OSSCACHE);
-
-  # Replace XRDSHDIR for service starting
-  cd ${XRDSHDIR}
-  cp -f alicexrdservices.tmp alicexrdservices;
-  /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
-
-  cd ${XRDCONFDIR}
-  for name in $(/bin/find ${XRDCONFDIR} -type f -name "*.tmp"); do
-    newname=$(echo ${name} | /bin/sed s/\.tmp// )
-
-    cp -f ${name} ${newname};
-
-    [[ -n "${XRDREADONLY}" ]] && /usr/bin/perl -pi -e 's/\bwritable\b/notwritable/g if /all.export/;' ${newname};
-
-    # Set xrootd site name
-    /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${newname};
-
-    # Replace XRDSHDIR and XRDRUNDIR
-    /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${newname};
-
-    # Substitute all the variables into the templates
-    /usr/bin/perl -pi -e 's/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g;' ${newname};
-
-    # write storage partitions
-    /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${newname};
-
-    # if [ -n "$OSSCACHE" ] ; then
-    #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> $newname
-    # fi
-
-    # Monalisa stuff which has to be commented out in some cases
-    if [[ -n "$MONALISA_HOST" ]] ; then
-      /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${newname};
-    else
-      /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${newname};
-    fi
-
-    # XrdAcc stuff which has to be commented out in some cases
-    if [[ -n "$ACCLIB" ]] ; then
-      /usr/bin/perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${newname}
-    else
-      /usr/bin/perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${newname}
-    fi
-
-    # Xrdn2n stuff which has to be commented out in some cases
-    if [[ -z "$LOCALPATHPFX" ]] ; then
-      /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${newname}
-    fi
-
-
-  done;
-
-  /bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
-
-  cd -;
-}
+createconf() { set_system ; }
 
 ######################################
-bootstrap() {
-  createconf
-  /bin/mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
-  [[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
-}
+bootstrap() { set_system ; }
 
 ######################################
 ## create TkAuthz.Authorization file; take as argument the place where are the public keys
@@ -512,6 +510,7 @@ echo "try : sudo cp ${FILE} /etc/security/limits.d/"
 
 ######################################
 handlelogs() {
+  getLocations
   cd ${XRDRUNDIR}
   /bin/mkdir -p ${XRDRUNDIR}/logsbackup
   local LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
@@ -580,6 +579,7 @@ restartXRD() {
     echo restartXRD
     killXRD
 
+    set_system
     execEnvironment ${INSTANCE_NAME} || exit
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
@@ -649,7 +649,7 @@ exit $returnval
 ######################
 xrdsh_main() {
 if [[ "$1" == "-c" ]]; then  ## check and restart if not running
-    bootstrap
+    set_system
     addcron # it will remove old xrd.sh line and
     checkkeys
 
@@ -673,11 +673,11 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     checkstate
 elif [[ "$1" == "-check" ]]; then
 ## CLI starting of services
-    bootstrap
+    set_system
     checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
     addcron # it will remove old xrd.sh line and
-    bootstrap
+    set_system
     checkkeys
     /bin/date
     echo "(Re-)Starting ...."
@@ -693,7 +693,7 @@ elif [[ "$1" == "-k" ]]; then  ## kill running processes
 elif [[ "$1" == "-logs" ]]; then  ## handlelogs
     handlelogs
 elif [[ "$1" == "-conf" ]]; then  ## create configuration
-    createconf
+    set_system
 elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
 elif [[ "$1" == "-addcron" ]]; then  ## add cron line
