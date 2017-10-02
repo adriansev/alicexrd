@@ -42,8 +42,7 @@ serverinfo() {
   server="yes"; manager=""; nproc=1;
 
   # unless i am manager
-  myip_found_at=$(expr index "${MANAGER_IP_LIST}" "${MYIP}")
-  [[ "${myip_found_at}" != "0" ]] && { manager="yes"; server=""; }
+  [[ "${MANAGER_IP_LIST}" =~ "${MYIP}" ]] && { manager="yes"; server=""; }
 
   [[ "$manager" == "yes" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
 
