@@ -374,22 +374,25 @@ bootstrap() { set_system ; }
 ## create TkAuthz.Authorization file; take as argument the place where are the public keys
 create_tkauthz() {
   local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
+  local TK_FILE="${PRIV_KEY_DIR}/TkAuthz.Authorization"
 
-  echo "KEY VO:*       PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem" > ${PRIV_KEY_DIR}/TkAuthz.Authorization
-  /bin/chmod 600 ${PRIV_KEY_DIR}/TkAuthz.Authorization
-
+  (
   #########################################
   # the root of the exported namespace you allow to export on your disk servers
-  # just add all directories you want to allow
-  # this is only taken into account if you use the TokenAuthzOfs OFS
+  # just add all directories you want to allow this is only taken into account if you use the TokenAuthzOfs OFS
   # Of course, the localroot prefix here should be omitted
   # If the cluster is (correctly!) configured with the right
-  # localroot option, allowing / is just fine and 100% secure. That should be
-  # considered normal.
-  echo 'EXPORT PATH:/ VO:*     ACCESS:ALLOW CERT:*' >> ${PRIV_KEY_DIR}/TkAuthz.Authorization
+  # localroot option, allowing / is just fine and 100% secure. That should be considered normal.
+  echo 'EXPORT PATH:/ VO:*     ACCESS:ALLOW CERT:*'
 
   # rules, which define which paths need authorization; leave it like that, that is safe
-  echo 'RULE PATH:/ AUTHZ:delete|write|write-once| NOAUTHZ:read| VO:*| CERT:*' >> ${PRIV_KEY_DIR}/TkAuthz.Authorization
+  echo 'RULE PATH:/ AUTHZ:delete|read|write|write-once| NOAUTHZ:| VO:*| CERT:IGNORE'
+
+  echo "KEY VO:* PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem"
+
+  ) > ${TK_FILE}
+
+  /bin/chmod 600 ${TK_FILE}
 }
 
 ######################################
