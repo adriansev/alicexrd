@@ -30,7 +30,6 @@ ${CURL} ${XRDSHDIR}/alicexrdservices.tmp ${LOCATION}/${BRANCH}/alicexrdservices.
 
 # Main configurations
 ${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  ${LOCATION}/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
-${CURL} ${XRDCONFDIR}/authz.cnf            ${LOCATION}/${BRANCH}/alicexrdconf/authz.cnf
 
 # Common configuration template
 ${CURL} ${XRDCONFDIR}/xrootd.xrootd.cf.tmp ${LOCATION}/${BRANCH}/alicexrdconf/xrootd.xrootd.cf.tmp
