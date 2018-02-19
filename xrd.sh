@@ -489,18 +489,17 @@ startMon() {
 
 ######################################
 create_limits_conf () {
-set_system
 
 local FILE="99-xrootd_limits.conf"
 
 echo "The generated file ${FILE} should be placed in /etc/security/limits.d/"
 
 cat > ${FILE} <<EOF
-${XRDUSER}         hard    nofile          65536
-${XRDUSER}         soft    nofile          65536
+${USER}         hard    nofile          65536
+${USER}         soft    nofile          65536
 
-${XRDUSER}         hard    nproc          1024
-${XRDUSER}         soft    nproc          1024
+${USER}         hard    nproc          1024
+${USER}         soft    nproc          1024
 
 EOF
 
