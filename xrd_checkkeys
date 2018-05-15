@@ -1,0 +1,55 @@
+#!/bin/bash
+
+######################################
+## create TkAuthz.Authorization file; take as argument the place where are the public keys
+create_tkauthz() {
+  local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
+  local TK_FILE="${PRIV_KEY_DIR}/TkAuthz.Authorization"
+
+  (
+  #########################################
+  # the root of the exported namespace you allow to export on your disk servers
+  # just add all directories you want to allow this is only taken into account if you use the TokenAuthzOfs OFS
+  # Of course, the localroot prefix here should be omitted
+  # If the cluster is (correctly!) configured with the right
+  # localroot option, allowing / is just fine and 100% secure. That should be considered normal.
+  echo 'EXPORT PATH:/ VO:*     ACCESS:ALLOW CERT:*'
+
+  # rules, which define which paths need authorization; leave it like that, that is safe
+  echo 'RULE PATH:/ AUTHZ:delete|read|write|write-once| NOAUTHZ:| VO:*| CERT:IGNORE'
+
+  echo "KEY VO:* PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem"
+
+  ) > ${TK_FILE}
+
+  /bin/chmod 600 ${TK_FILE}
+}
+
+######################################
+checkkeys() {
+    KEYS_REPO="http://alitorrent.cern.ch/src/xrd3/keys/"
+
+    authz_dir1="/etc/grid-security/xrootd"
+    authz_dir2="${HOME}/.globus/xrootd"
+    authz_dir3="${HOME}/.authz/xrootd"
+
+    authz_dir=${authz_dir3} # default dir
+
+    for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
+      [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && exit 0
+    done
+
+    [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
+
+    /bin/mkdir -p ${authz_dir}
+    echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
+
+    cd ${authz_dir}
+    /usr/bin/curl -fskSL -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
+    /bin/chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
+
+    create_tkauthz ${authz_dir}
+}
+
+checkkeys
+
