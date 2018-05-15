@@ -4,11 +4,11 @@
 serverinfo() {
   ## Network information and validity checking
   MYNET=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/ip.jsp)
-  MYIP=$(echo "${MYNET}" | /bin/awk '/IP/ {gsub("IP:","",$1); print $1}')
-  REVERSE=$(echo "${MYNET}" | /bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1}')
+  MYIP=$(echo "${MYNET}" | /bin/awk '/IP/ {gsub("IP:","",$1); print $1}') #'
+  REVERSE=$(echo "${MYNET}" | /bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1}') #'
 
   ## make sure the exit public ip is locally configured
-  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}')
+  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}') #'
   found_at=$(expr index "${ip_list}" "${MYIP}")
   [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
 
@@ -22,14 +22,14 @@ serverinfo() {
   echo "The fully qualified hostname appears to be $myhost"
 
   ## Find information about site from ML
-  MONALISA_IP=$(/usr/bin/curl -s http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}')
-  MONALISA_HOST=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}')
+  MONALISA_IP=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}') #'
+  MONALISA_HOST=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}') #'
 
   se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
   [[ "${se_info}" == "null" ]] && { echo "The stated SE name ${SE_NAME} is not found to be valid by MonaLisa" && exit 10; }
 
-  MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' )
-  LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' )
+  MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' ) #'
+  LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' ) #'
 
   MANAGER_IP_LIST=$(/usr/bin/host -t A ${MANAGERHOST})
 
@@ -69,7 +69,6 @@ SETCOLOR_NORMAL="echo -en \\033[0;39m"
 ######################################
 check_prerequisites() {
 [ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit 1; }
-[ ! -e "/usr/bin/wget" ] && { echo "wget command not found; do : yum -y install wget.x86_64"; exit 1; }
 [ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
 [ ! -e "/usr/bin/bzip2" ] && { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
 }
@@ -82,11 +81,11 @@ getLocations () {
 ## find the location of xrd.sh script
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
-  XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )"
-  SOURCE="$(readlink "${SOURCE}")"
+  XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
+  SOURCE="$(readlink "${SOURCE}")" ##"
   [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
-XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)"
+XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
 
 export XRDSHDIR
 
@@ -162,12 +161,12 @@ startUp() {
 
 ######################################
 getPidFiles_xrd () {
-ps -o args= $(pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}'
+ps -o args= $(pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
 getPidFiles_cmsd () {
-ps -o args= $(pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}'
+ps -o args= $(pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
@@ -294,7 +293,7 @@ SCRIPTUSER=$USER
 XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
 
 ## get the home dir of the designated xrd user
-XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}')
+XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}') #'
 [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user $XRDUSER"; exit 10;}
 
 #######################
@@ -397,36 +396,49 @@ create_tkauthz() {
 
 ######################################
 checkkeys() {
-    KEYS_REPO="http://alitorrent.cern.ch/src/xrd3/keys/"
+  ## find the location of xrd.sh script
+  local SOURCE=""
+  local XRDSHDIR=""
 
-    authz_dir1="/etc/grid-security/xrootd/"
-    authz_dir2="${XRDHOME}/.globus/xrootd/"
-    authz_dir3="${XRDHOME}/.authz/xrootd/"
+  SOURCE="${BASH_SOURCE[0]}"
+  while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
+    XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" #"
+    SOURCE="$(readlink "${SOURCE}")"
+    [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+  done
 
-    authz_dir=${authz_dir3} # default dir
+  XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" #"
 
-    if [[ -n "$ACCLIB" ]]; then
-      installkeys=yes ## default action is installing keys in default dir
+  ## automatically asume that the owner of location of xrd.sh is XRDUSER
+  local XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
 
-      for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
-        [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && installkeys=no && break
-      done
+  ## get the home dir of the designated xrd user
+  local XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
+  [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; return 10;}
 
-      if [[ "$installkeys" == "yes" ]]; then
-        [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
-        /bin/mkdir -p ${authz_dir}
-        echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
+  local KEYS_REPO="http://alitorrent.cern.ch/src/xrd3/keys/"
+  local authz_dir1="/etc/grid-security/xrootd/"
+  local authz_dir2="${XRDHOME}/.globus/xrootd/"
+  local authz_dir3="${XRDHOME}/.authz/xrootd/"
 
-        cd ${authz_dir}
-        /usr/bin/curl -fsSL -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
-        /bin/chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
+  local authz_dir=${authz_dir3} # default dir
 
-        create_tkauthz ${authz_dir}
-        /bin/chown -R $XRDUSER $XRDHOME/.authz
-      fi
+  for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
+    [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && return 0
+  done
 
-    cd ~
-    fi
+  [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
+  /bin/mkdir -p ${authz_dir}
+  echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
+
+  cd ${authz_dir}
+  /usr/bin/curl -fsSLk -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
+  /bin/chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
+
+  create_tkauthz ${authz_dir}
+  /bin/chown -R ${XRDUSER} ${XRDHOME}/.authz
+
+cd ~
 }
 
 ######################################
