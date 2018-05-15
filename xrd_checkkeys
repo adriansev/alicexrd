@@ -36,7 +36,7 @@ checkkeys() {
     authz_dir=${authz_dir3} # default dir
 
     for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
-      [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && exit 0
+      [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && return 0
     done
 
     [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
