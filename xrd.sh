@@ -596,11 +596,11 @@ restartXRD() {
     execEnvironment ${INSTANCE_NAME} || exit
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
-    echo -n "Starting xrootd [${INSTANCE_NAME}]: "
-    startUp startXRDserv ${XRDCONFDIR}/xrootd.cf
-
     echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
     startUp startCMSDserv ${XRDCONFDIR}/xrootd.cf
+
+    echo -n "Starting xrootd [${INSTANCE_NAME}]: "
+    startUp startXRDserv ${XRDCONFDIR}/xrootd.cf
 
     startMon
     sleep 1 ## need delay for starMon
