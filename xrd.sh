@@ -578,13 +578,12 @@ killXRD() {
     /bin/sleep 1
     /usr/bin/pkill -9 -u $USER xrootd
     /usr/bin/pkill -9 -u $USER cmsd
-    /usr/bin/pkill -f -u $USER mpxstats
 
     echo_passed;
     echo
 
-    echo -n "Stopping ApMon:"
-    servMon -k
+    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u $USER mpxstats; }
+
 }
 
 ######################################
@@ -602,8 +601,9 @@ restartXRD() {
     echo -n "Starting xrootd [${INSTANCE_NAME}]: "
     startUp startXRDserv ${XRDCONFDIR}/xrootd.cf
 
-    startMon
-    sleep 1 ## need delay for starMon
+    sleep 1
+    [[ -z "${XRDSH_NOAPMON}" ]] && { startMon; sleep 1; }
+
 }
 
 ######################################
@@ -639,22 +639,24 @@ else
   returnval=1;
 fi
 
-if [[ -n "${MONALISA_HOST}" ]] ; then
-  lines=$(/bin/find ${apmonPidFile}* 2>/dev/null | /usr/bin/wc -l)
 
-  if (( lines > 0 )) ; then
-    echo -n "apmon:";
-    echo_success;
-    echo
-  else
-    echo -n "apmon:";
-    echo_failure;
-    echo
-    returnval=1;
-  fi
+if [[ -z "${XRDSH_NOAPMON}" ]]; then
+    [[ -n "${MONALISA_HOST}" ]] && lines=$(/bin/find ${apmonPidFile}* 2>/dev/null | /usr/bin/wc -l)
+
+    if (( lines > 0 )) ; then
+      echo -n "apmon:";
+      echo_success;
+      echo
+    else
+      echo -n "apmon:";
+      echo_failure;
+      echo
+      returnval=1;
+    fi
+
 fi
 
-exit $returnval
+return ${returnval}
 }
 
 ######################
@@ -681,8 +683,10 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
       echo "------------------------------------------"
     fi
 
-    ## we start servMon anyway
-    [[ -n "$MONALISA_HOST" ]] && servMon
+    if [[ -z "${XRDSH_NOAPMON}" ]] ; then
+      [[ -n "$MONALISA_HOST" ]] && servMon
+    fi
+
     checkstate
 elif [[ "$1" == "-check" ]]; then
 ## CLI starting of services
@@ -696,8 +700,10 @@ elif [[ "$1" == "-f" ]]; then   ## force restart
     echo "(Re-)Starting ...."
     restartXRD
 
-    ## we start servMon anyway
-    [[ -n "$MONALISA_HOST" ]] && servMon
+    if [[ -z "${XRDSH_NOAPMON}" ]] ; then
+      [[ -n "$MONALISA_HOST" ]] && servMon
+    fi
+
     checkstate
 elif [[ "$1" == "-k" ]]; then  ## kill running processes
     removecron
