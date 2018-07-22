@@ -1,62 +1,6 @@
 #!/bin/bash
 
-######################################
-serverinfo() {
-  ## Network information and validity checking
-  MYNET=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/ip.jsp)
-  MYIP=$(echo "${MYNET}" | /bin/awk '/IP/ {gsub("IP:","",$1); print $1}') #'
-  REVERSE=$(echo "${MYNET}" | /bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1}') #'
-
-  ## make sure the exit public ip is locally configured
-  ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1]}') #'
-  found_at=$(expr index "${ip_list}" "${MYIP}")
-  [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment" && exit 10; }
-
-  ## what is my local set hostname
-  [[ -z "$myhost" ]] && myhost=$(/bin/hostname -f)
-  [[ -z "$myhost" ]] && myhost=$(/bin/hostname)
-  [[ -z "$myhost" ]] && echo "Cannot determine hostname. Aborting." && exit 1
-
-  ## make sure the locally configured hostname is the same with the external one
-  [[ "$myhost" != "$REVERSE" ]] && { echo "detected hostname $myhost does not corespond to reverse dns name $REVERSE" && exit 10; }
-  echo "The fully qualified hostname appears to be $myhost"
-
-  ## Find information about site from ML
-  MONALISA_IP=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/getClosestSite.jsp?ml_ip=true | /bin/awk -F, '{print $1}') #'
-  MONALISA_HOST=$(/usr/bin/host ${MONALISA_IP} | /bin/awk '{ print substr ($NF,1,length($NF)-1);}') #'
-
-  se_info=$(/usr/bin/curl -fsSLk http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME})
-  [[ "${se_info}" == "null" ]] && { echo "The stated SE name ${SE_NAME} is not found to be valid by MonaLisa" && exit 10; }
-
-  MANAGERHOST=$(echo "${se_info}" | /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2);gsub (":1094","",$2) ; print $2 }' ) #'
-  LOCALPATHPFX=$(echo "${se_info}" | /bin/awk -F": " '/seStoragePath/ { print $2 }' ) #'
-
-  MANAGER_IP_LIST=$(/usr/bin/host -t A ${MANAGERHOST})
-
-  IS_MANAGER_ALIAS=$(echo ${MANAGER_IP_LIST}| wc -l)
-  ## see http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
-  (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
-
-  ##  What i am?
-  # default role - server
-  server="yes"; manager=""; nproc=1;
-
-  # unless i am manager
-  [[ "${MANAGER_IP_LIST}" =~ "${MYIP}" ]] && { manager="yes"; server=""; }
-
-  [[ "$manager" == "yes" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
-
-  export INSTANCE_NAME
-  export MONALISA_HOST
-  export MANAGERHOST
-  export LOCALPATHPFX
-  export manager
-  export server
-  export nproc
-}
-
-######################################
-set_formatters() {
+## formatters
 BOOTUP=color
 RES_COL=60
 MOVE_TO_COL="echo -en \\033[${RES_COL}G"
@@ -64,47 +8,14 @@ SETCOLOR_SUCCESS="echo -en \\033[1;32m"
 SETCOLOR_FAILURE="echo -en \\033[1;31m"
 SETCOLOR_WARNING="echo -en \\033[1;33m"
 SETCOLOR_NORMAL="echo -en \\033[0;39m"
-}
+
+CURLCMD="/usr/bin/curl -m 1 -fsSLk"
 
 ######################################
 check_prerequisites() {
-[ ! -e "/usr/bin/dig" ] && { echo "dig command not found; do : yum -y install bind-utils.x86_64"; exit 1; }
 [ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
 [ ! -e "/usr/bin/bzip2" ] && { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
 }
-
-######################################
-getLocations () {
-# Define system settings
-# Find configs, dirs, xrduser, ...
-
-## find the location of xrd.sh script
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
-  XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
-  SOURCE="$(readlink "${SOURCE}")" ##"
-  [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-done
-XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
-
-export XRDSHDIR
-
-# make sure xrd.sh is executable by user and user group
-/bin/chmod ug+x ${XRDSHDIR}/xrd.sh
-
-# location of logs, admin, core dirs
-XRDRUNDIR=${XRDRUNDIR:-$XRDSHDIR/run/}
-export XRDRUNDIR
-
-# location of configuration files; needs not be the same with xrd.sh location
-XRDCONFDIR=${XRDCONFDIR:-$XRDSHDIR/xrootd.conf/}
-export XRDCONFDIR
-
-## LOCATIONS AND INFORMATIONS
-export XRDCONF="${XRDCONFDIR}/system.cnf"
-source ${XRDCONF}
-}
-
 
 ##########  FUNCTIONS   #############
 echo_success() {
@@ -127,7 +38,7 @@ echo_failure() {
   [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
   echo -n "  ]"
   echo -ne "\r"
-  return 0
+  return 1
 }
 
 ######################################
@@ -139,13 +50,13 @@ echo_passed() {
   [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
   echo -n "]"
   echo -ne "\r"
-  return 1
+  return 0
 }
 
 ######################################
 startUp() {
-    if [[ "$SCRIPTUSER" == "root" ]]; then
-      cd "$XRDSHDIR"
+    if [[ "${SCRIPTUSER}" == "root" ]]; then
+      cd "${XRDSHDIR}"
       /bin/su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
       echo_passed
       # test $? -eq 0 && echo_success || echo_failure
@@ -161,12 +72,12 @@ startUp() {
 
 ######################################
 getPidFiles_xrd () {
-ps -o args= $(pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
 getPidFiles_cmsd () {
-ps -o args= $(pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
@@ -249,6 +160,130 @@ eval ${CMSD_START}
 }
 
 ######################################
+getLocations () {
+# Define system settings
+# Find configs, dirs, xrduser, ...
+
+## find the location of xrd.sh script
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
+  XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
+  SOURCE="$(readlink "${SOURCE}")" ##"
+  [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
+
+export XRDSHDIR
+
+# make sure xrd.sh is executable by user and user group
+/bin/chmod ug+x ${XRDSHDIR}/xrd.sh
+
+# location of logs, admin, core dirs
+XRDRUNDIR=${XRDRUNDIR:-$XRDSHDIR/run/}
+export XRDRUNDIR
+
+# location of configuration files; needs not be the same with xrd.sh location
+XRDCONFDIR=${XRDCONFDIR:-$XRDSHDIR/xrootd.conf/}
+export XRDCONFDIR
+
+## LOCATIONS AND INFORMATIONS
+export XRDCONF="${XRDCONFDIR}/system.cnf"
+source ${XRDCONF}
+}
+
+######################################
+serverinfo() {
+[[ -z "${XRDCONF}" ]] && getLocations
+
+## if SE_NAME not defined check if there is env variable ALICEXRD_SE_NAME
+[[ -z "${SE_NAME}" ]] && SE_NAME=${ALICEXRD_SE_NAME}
+## if still not defined failed immediatly
+[[ -z "${SE_NAME}" ]] && { echo "SE name is not defined; use it as argument, export ALICEXRD_SE_NAME, or define it the configuration of _RUNNING_ xrootd server" && exit 1; }
+
+echo "Found SE_NAME=${SE_NAME}"
+
+## Get SE info from MonaLisa and check if the SE name is valid; try 3 times before fail and exit
+local ALIMON_SE_URL ALIMON_IP_URL
+ALIMON_SE_URL="http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME}&ml_ip=true&resolve=true"
+ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
+
+se_info=$(${CURLCMD} ${ALIMON_URL};)
+[[ -z "${se_info}" ]] && { sleep 1; se_info=$(${CURLCMD} ${ALIMON_SE_URL};); }
+[[ -z "${se_info}" ]] && { sleep 2; se_info=$(${CURLCMD} ${ALIMON_SE_URL};); }
+[[ "${se_info}" == "null" ]] || [[ -z "${se_info}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name" && exit 1; }
+
+## Find information about site from ML
+MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${se_info}" | head -n1) #'
+
+## get my ip
+MYNET=$(${CURLCMD} ${ALIMON_IP_URL})
+[[ -z "${MYNET}" ]] && { sleep 1; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
+[[ -z "${MYNET}" ]] && { sleep 2; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
+[[ -z "${MYNET}" ]] && { echo "MYNET not found, maybe bad connectivity to alimonitor?" && exit 1; }
+
+## Network information and validity checking
+MYIP=$(/bin/awk '/IP/ {gsub("IP:","",$1); print $1;}'  <<< "${MYNET}") #'
+REVERSE=$(/bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1;}'  <<< "${MYNET}" ) #'
+
+## make sure the exit public ip is locally configured
+ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1];}') #'
+found_at=$(expr index "${ip_list}" "${MYIP}")
+[[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment"; exit 1; }
+
+## what is my local set hostname
+[[ -z "${myhost}" ]] && myhost=$(/bin/hostname -f)
+[[ -z "${myhost}" ]] && myhost=$(/bin/hostname)
+[[ -z "${myhost}" ]] && { echo "Cannot determine hostname. Aborting."; exit 1; }
+
+## make sure the locally configured hostname is the same with the external one
+[[ "${myhost}" != "${REVERSE}" ]] && { echo "detected hostname ${myhost} does not corespond to reverse dns name ${REVERSE}"; exit 1; }
+echo "The fully qualified hostname appears to be ${myhost}"
+
+## XROOTD Manager info
+MANAGER_HOST_PORT=$( /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${se_info}" ) #'
+IFS=':' read -r -a mgr_host_port_arr <<< "${MANAGER_HOST_PORT}"
+MANAGERHOST="${mgr_host_port_arr[0]}"
+MANAGERPORT="${mgr_host_port_arr[1]}"
+
+LOCALPATHPFX=$(/bin/awk -F": " '/seStoragePath/ {print $2;}'  <<< "${se_info}" ) #'
+
+###############################################################################################
+## WHAT IS MY ROLE?
+is_manager=""
+ROLE="server"
+
+## am i the top manager defined in ML ?
+## maybe the manager is an alias to multiple redundant ips
+DNS_QUERY_IPv4=$(host -t A ${MANAGERHOST})
+DNS_QUERY_IPv6=$(host -t AAAA ${MANAGERHOST})
+
+[[ "${DNS_QUERY_IPv4}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv4}" =~ NXDOMAIN ]] && DNS_QUERY_IPv4=""
+[[ "${DNS_QUERY_IPv6}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv6}" =~ NXDOMAIN ]] && DNS_QUERY_IPv6=""
+
+MANAGER_IP_LIST=$(/bin/awk '{print $NF;}' <<< "${DNS_QUERY_IPv4}") #'
+MANAGER_IPv6_LIST=$(/bin/awk '{print $NF;}'  <<< "${DNS_QUERY_IPv6}") #'
+
+## is my ip in manager ip list
+[[ "${MANAGER_IP_LIST}" =~ "${MYIP}" ]] && { is_manager="1" ; ROLE="manager" ; }
+
+## if MANGERHOST fqdn is an alias then register servers to all ips
+# IS_MANAGER_ALIAS=$(echo ${MANAGER_IP_LIST}| wc -l)
+## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
+# (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
+## THIS MUST BE TESTED AND IMPROVED !!! TODO
+
+## instance name can be something else; to be used when starting multiple server, but we are not doing this
+[[ "${is_manager}" -eq "1" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
+
+export INSTANCE_NAME
+export MONALISA_FQDN
+export MANAGERHOST
+export LOCALPATHPFX
+export INSTANCE_NAME
+export ROLE
+}
+
+######################################
 set_system () {
 getLocations
 
@@ -290,11 +325,11 @@ USER=${USER:-$LOGNAME}
 SCRIPTUSER=$USER
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
+XRDUSER=$(/usr/bin/stat -c %U ${XRDSHDIR})
 
 ## get the home dir of the designated xrd user
-XRDHOME=$(getent passwd $XRDUSER | awk -F: '{print $(NF-1)}') #'
-[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user $XRDUSER"; exit 10;}
+XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
+[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
 
 #######################
 ##   replace detected values in the template conf file
@@ -331,13 +366,9 @@ for name in $(/bin/find ${XRDCONFDIR} -type f -name "*.tmp"); do
   # write storage partitions
   /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${newname};
 
-  # if [ -n "$OSSCACHE" ] ; then
-  #     echo -e "\n\n\n${OSSCACHE}\n\n\n" >> $newname
-  # fi
-
   # Monalisa stuff which has to be commented out in some cases
-  if [[ -n "$MONALISA_HOST" ]] ; then
-    /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_HOST}/g' ${newname};
+  if [[ -n "${MONALISA_FQDN}" ]] ; then
+    /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_FQDN}/g' ${newname};
   else
     /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${newname};
   fi
@@ -359,8 +390,8 @@ done;
 /bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
 cd -;
 
-/bin/mkdir -p ${LOCALROOT}/${LOCALPATHPFX}
-[[ "${server}" == "yes" ]] && chown $XRDUSER ${LOCALROOT}/${LOCALPATHPFX}
+[[ ! -e "${LOCALROOT}/${LOCALPATHPFX}"  ]] &&  { echo "${LOCALROOT}/${LOCALPATHPFX} is not found! Please create it as user: ${XRDUSER}!"; exit 1; }
+
 }
 
 ######################################
@@ -747,6 +778,5 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]] ; then
     return 0
 fi
 
-set_formatters
 check_prerequisites
 xrdsh_main "$@"
