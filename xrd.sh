@@ -179,26 +179,27 @@ export XRDSHDIR
 /bin/chmod ug+x ${XRDSHDIR}/xrd.sh
 
 # location of logs, admin, core dirs
-XRDRUNDIR=${XRDRUNDIR:-$XRDSHDIR/run/}
+XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}
 export XRDRUNDIR
 
 # location of configuration files; needs not be the same with xrd.sh location
-XRDCONFDIR=${XRDCONFDIR:-$XRDSHDIR/xrootd.conf/}
+XRDCONFDIR=${XRDCONFDIR:-${XRDSHDIR}/xrootd.conf/}
 export XRDCONFDIR
 
 ## LOCATIONS AND INFORMATIONS
-export XRDCONF="${XRDCONFDIR}/system.cnf"
-source ${XRDCONF}
+XRDCONF="${XRDCONFDIR}/system.cnf"
+export XRDCONF
+
+[[ -e "${XRDCONF}" -a -f "${XRDCONF}" ]] && source ${XRDCONF} || { echo "Could not find for sourcing ${XRDCONF}"; exit1; }
 }
 
 ######################################
-serverinfo() {
+##  Get all relevant server information from MonaLisa
+serverinfo () {
 [[ -z "${XRDCONF}" ]] && getLocations
 
-## if SE_NAME not defined check if there is env variable ALICEXRD_SE_NAME
-[[ -z "${SE_NAME}" ]] && SE_NAME=${ALICEXRD_SE_NAME}
-## if still not defined failed immediatly
-[[ -z "${SE_NAME}" ]] && { echo "SE name is not defined; use it as argument, export ALICEXRD_SE_NAME, or define it the configuration of _RUNNING_ xrootd server" && exit 1; }
+## if SE_NAME not found in system.cnf
+[[ -z "${SE_NAME}" ]] && { echo "SE name is not defined in system.cnf!" && exit 1; }
 
 echo "Found SE_NAME=${SE_NAME}"
 
@@ -207,15 +208,9 @@ local ALIMON_SE_URL ALIMON_IP_URL
 ALIMON_SE_URL="http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME}&ml_ip=true&resolve=true"
 ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
 
-se_info=$(${CURLCMD} ${ALIMON_URL};)
-[[ -z "${se_info}" ]] && { sleep 1; se_info=$(${CURLCMD} ${ALIMON_SE_URL};); }
-[[ -z "${se_info}" ]] && { sleep 2; se_info=$(${CURLCMD} ${ALIMON_SE_URL};); }
-[[ "${se_info}" == "null" ]] || [[ -z "${se_info}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name" && exit 1; }
-
-## Find information about site from ML
-MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${se_info}" | head -n1) #'
-
-## get my ip
+## Validate the ip - make sure is a public one and the reverse match the defined hostname
+# get my ip
+local MYNET MYIP REVERSE
 MYNET=$(${CURLCMD} ${ALIMON_IP_URL})
 [[ -z "${MYNET}" ]] && { sleep 1; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
 [[ -z "${MYNET}" ]] && { sleep 2; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
@@ -226,73 +221,89 @@ MYIP=$(/bin/awk '/IP/ {gsub("IP:","",$1); print $1;}'  <<< "${MYNET}") #'
 REVERSE=$(/bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1;}'  <<< "${MYNET}" ) #'
 
 ## make sure the exit public ip is locally configured
+local ip_list found_at
 ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1];}') #'
 found_at=$(expr index "${ip_list}" "${MYIP}")
 [[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment"; exit 1; }
 
 ## what is my local set hostname
-[[ -z "${myhost}" ]] && myhost=$(/bin/hostname -f)
-[[ -z "${myhost}" ]] && myhost=$(/bin/hostname)
-[[ -z "${myhost}" ]] && { echo "Cannot determine hostname. Aborting."; exit 1; }
+local MYHNAME
+MYHNAME=$(/bin/hostname -f)
+[[ -z "${MYHNAME}" ]] && MYHNAME=$(/usr/bin/cat /proc/sys/kernel/hostname)
+[[ -z "${MYHNAME}" ]] && MYHNAME=$(/usr/bin/hostnamectl | /usr/bin/awk '/hostname/ {print $NF;}')
+[[ -z "${MYHNAME}" ]] && { echo "Cannot determine hostname. Aborting."; exit 1; }
 
 ## make sure the locally configured hostname is the same with the external one
-[[ "${myhost}" != "${REVERSE}" ]] && { echo "detected hostname ${myhost} does not corespond to reverse dns name ${REVERSE}"; exit 1; }
-echo "The fully qualified hostname appears to be ${myhost}"
+[[ "${MYHNAME}" != "${REVERSE}" ]] && { echo "detected hostname ${MYHNAME} does not corespond to reverse dns name ${REVERSE}"; exit 1; }
+echo "The fully qualified hostname appears to be ${MYHNAME}"
+
+## get SE information from MonaLisa and validate SE_NAME
+local SE_INFO
+SE_INFO=$(${CURLCMD} ${ALIMON_URL};)
+[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};); }
+[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};); }
+[[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
+
+## Find information about site from ML
+MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | head -n1) #'
 
 ## XROOTD Manager info
-MANAGER_HOST_PORT=$( /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${se_info}" ) #'
+MANAGER_HOST_PORT=$( /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${SE_INFO}" ) #'
 IFS=':' read -r -a mgr_host_port_arr <<< "${MANAGER_HOST_PORT}"
 MANAGERHOST="${mgr_host_port_arr[0]}"
 MANAGERPORT="${mgr_host_port_arr[1]}"
 
-LOCALPATHPFX=$(/bin/awk -F": " '/seStoragePath/ {print $2;}'  <<< "${se_info}" ) #'
+LOCALPATHPFX=$(/bin/awk -F": " '/seStoragePath/ {print $2;}'  <<< "${SE_INFO}" ) #'
 
 ###############################################################################################
 ## WHAT IS MY ROLE?
-is_manager=""
+# Default assumption
+is_manager="0"
 ROLE="server"
 
-## am i the top manager defined in ML ?
-## maybe the manager is an alias to multiple redundant ips
+# ipv4 ips recorded to the manager fqdn
+local DNS_QUERY_IPv4 MANAGER_IP_LIST
 DNS_QUERY_IPv4=$(host -t A ${MANAGERHOST})
-DNS_QUERY_IPv6=$(host -t AAAA ${MANAGERHOST})
-
 [[ "${DNS_QUERY_IPv4}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv4}" =~ NXDOMAIN ]] && DNS_QUERY_IPv4=""
-[[ "${DNS_QUERY_IPv6}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv6}" =~ NXDOMAIN ]] && DNS_QUERY_IPv6=""
-
 MANAGER_IP_LIST=$(/bin/awk '{print $NF;}' <<< "${DNS_QUERY_IPv4}") #'
-MANAGER_IPv6_LIST=$(/bin/awk '{print $NF;}'  <<< "${DNS_QUERY_IPv6}") #'
 
-## is my ip in manager ip list
-[[ "${MANAGER_IP_LIST}" =~ "${MYIP}" ]] && { is_manager="1" ; ROLE="manager" ; }
+# ipv6 logic; we don't use it as storage have to be dual stack
+# ipv6 ips recorded to the manager fqdn
+# local DNS_QUERY_IPv6 MANAGER_IPv6_LIST
+# DNS_QUERY_IPv6=$(host -t AAAA ${MANAGERHOST})
+# [[ "${DNS_QUERY_IPv6}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv6}" =~ NXDOMAIN ]] && DNS_QUERY_IPv6=""
+# MANAGER_IPv6_LIST=$(/bin/awk '{print $NF;}'  <<< "${DNS_QUERY_IPv6}") #'
+
+#is my ip in manager ip list; so far we check only for ipv4 as storage have to be dual-stack anyway
+[[ "${MANAGER_IP_LIST}" =~ "${MYIP}" ]] && { is_manager="1"; ROLE="manager"; }
 
 ## if MANGERHOST fqdn is an alias then register servers to all ips
-# IS_MANAGER_ALIAS=$(echo ${MANAGER_IP_LIST}| wc -l)
-## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
-# (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
-## THIS MUST BE TESTED AND IMPROVED !!! TODO
+MANAGER_ALIAS=$(echo "${MANAGER_IP_LIST}" | /usr/bin/wc -l)
 
-## instance name can be something else; to be used when starting multiple server, but we are not doing this
+## instance name can be something else; to be used when starting multiple servers, but we are not doing this
 [[ "${is_manager}" -eq "1" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
 
-export INSTANCE_NAME
 export MONALISA_FQDN
 export MANAGERHOST
 export LOCALPATHPFX
-export INSTANCE_NAME
 export ROLE
+export INSTANCE_NAME
+export MANAGER_ALIAS
 }
 
 ######################################
 set_system () {
-getLocations
-
-# Get all upstream server info (after first source of system.cnf)
+# Get all upstream server info (after first source of system.cnf);
+# it will get also the locations of configurations and scripts
 serverinfo
 
 local XRDCF="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
 
-## set the debug value in configuration file
+## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
+# (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
+## THIS MUST BE TESTED AND IMPROVED !!! TODO
+
+## if set in system.cnf set the debug value in configuration file
 if [[ -n "${XRDDEBUG}" ]]; then
     cfg_set_xrdvalue ${XRDCF}  __XRD_DEBUG yes
     cfg_set_xrdvalue ${XRDCF} __CMSD_DEBUG yes
