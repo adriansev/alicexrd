@@ -352,11 +352,6 @@ echo "xrdconfdir is : ${XRDCONFDIR}"
 ###################
 export osscachetmp=$(echo -e $OSSCACHE);
 
-# Replace XRDSHDIR for service starting
-cd ${XRDSHDIR}
-cp -f alicexrdservices.tmp alicexrdservices;
-/usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g;' ${XRDSHDIR}/alicexrdservices;
-
 cd ${XRDCONFDIR}
 for name in $(/bin/find ${XRDCONFDIR} -type f -name "*.tmp"); do
   newname=$(echo ${name} | /bin/sed s/\.tmp// )
