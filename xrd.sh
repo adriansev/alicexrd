@@ -403,12 +403,6 @@ s/ACCLIB/${ACCLIB}/g;
 }
 
 ######################################
-createconf() { set_system ; }
-
-######################################
-bootstrap() { set_system ; }
-
-######################################
 ## create TkAuthz.Authorization file; take as argument the place where are the public keys
 create_tkauthz() {
   local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
