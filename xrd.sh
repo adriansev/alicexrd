@@ -297,42 +297,9 @@ set_system () {
 # it will get also the locations of configurations and scripts
 serverinfo
 
-local XRDCF="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
-
-## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
-# (( IS_MANAGER_ALIAS > 1 )) && MANAGERHOST="all ${MANAGERHOST}+"
-## THIS MUST BE TESTED AND IMPROVED !!! TODO
-
-## if set in system.cnf set the debug value in configuration file
-if [[ -n "${XRDDEBUG}" ]]; then
-    cfg_set_xrdvalue ${XRDCF}  __XRD_DEBUG yes
-    cfg_set_xrdvalue ${XRDCF} __CMSD_DEBUG yes
-fi
-
-## set the instance name for both processes xrootd and cmsd
-cfg_set_xrdvalue ${XRDCF}  __XRD_INSTANCE_NAME ${INSTANCE_NAME}
-cfg_set_xrdvalue ${XRDCF} __CMSD_INSTANCE_NAME ${INSTANCE_NAME}
-
-## set the xrootd and cmsd log file
-## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
-local  XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
-local CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
-cfg_set_xrdvalue ${XRDCF}  __XRD_LOG ${XRD_LOG}
-cfg_set_xrdvalue ${XRDCF} __CMSD_LOG ${CMSD_LOG}
-
-## set the xrootd and cmsd PID file
-local  XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
-local CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
-cfg_set_xrdvalue ${XRDCF}  __XRD_PIDFILE ${XRD_PIDFILE}
-cfg_set_xrdvalue ${XRDCF} __CMSD_PIDFILE ${CMSD_PIDFILE}
-
-# ApMon files
-export apmonPidFile=${XRDRUNDIR}/admin/apmon.pid
-export apmonLogFile=${XRDRUNDIR}/logs/apmon.log
-
+## Locations and user settings
 USER=${USER:-$LOGNAME}
 [[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
-
 SCRIPTUSER=$USER
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
@@ -342,61 +309,96 @@ XRDUSER=$(/usr/bin/stat -c %U ${XRDSHDIR})
 XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
 [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
 
+## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
+[[ ! -e "${LOCALROOT}/${LOCALPATHPFX}"  ]] &&  { echo "LOCALROOT/LOCALPATHPFX : ${LOCALROOT}/${LOCALPATHPFX} not found! Please create it as user: ${XRDUSER}!"; exit 1; }
+
+## Treatment of arguments
+local XRDCF XRDCF_TMP FILE_NAME DIR_NAME EXT ARG1 ARG2
+XRDCF_TMP="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
+
+ARG1="${1}"
+ARG2="${2}"
+
+[[ -n "${ARG1}" ]] && XRDCF_TMP="${ARG1}"
+[[ -n "${ARG2}" ]] && XRDCF="${ARG2}"
+
+# check if template file is present - required
+[[ ! -e "${XRDCF_TMP}" ]] && { echo "not found template file - ${XRDCF_TMP} "; exit 1; }
+
+# if configuration file is not specified (ARG2) then remove the tmp extension from template and use that name
+# even if no ARG1 is given the same procedure must be done for the default XRDCF_TMP
+if [[ -z "{ARG2}" ]]; then
+  FILE_NAME=$(/usr/bin/basename ${XRDCF_TMP})
+  DIR_NAME=$(/usr/bin/dirname ${XRDCF_TMP})
+
+  filename=$(/usr/bin/basename -- "${XRDCF_TMP}")
+  ext="${XRDCF_TMP##*.}"
+  [[ "${ext}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
+
+  XRDCF="${DIR_NAME}/${FILE_NAME}"
+
+  cp ${XRDCF_TMP} ${XRDCF}
+fi
+
 #######################
-##   replace detected values in the template conf file
+## Customize XRDCF file
 #######################
 
 echo "xrdsh dir is : ${XRDSHDIR}"
 echo "xrdconfdir is : ${XRDCONFDIR}"
 
-###################
-export osscachetmp=$(echo -e $OSSCACHE);
+## if set in system.cnf set the debug value in configuration file
+if [[ -n "${XRDDEBUG}" ]]; then
+    cfg_set_xrdvalue "${XRDCF}"  __XRD_DEBUG yes
+    cfg_set_xrdvalue "${XRDCF}" __CMSD_DEBUG yes
+fi
 
-cd ${XRDCONFDIR}
-for name in $(/bin/find ${XRDCONFDIR} -type f -name "*.tmp"); do
-  newname=$(echo ${name} | /bin/sed s/\.tmp// )
+## set the instance name for both processes xrootd and cmsd
+cfg_set_xrdvalue "${XRDCF}"  __XRD_INSTANCE_NAME "${INSTANCE_NAME}"
+cfg_set_xrdvalue "${XRDCF}" __CMSD_INSTANCE_NAME "${INSTANCE_NAME}"
 
-  cp -f ${name} ${newname};
+## set the xrootd and cmsd log file
+## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
+local XRD_LOG CMSD_LOG XRD_PIDFILE CMSD_PIDFILE
 
-  [[ -n "${XRDREADONLY}" ]] && /usr/bin/perl -pi -e 's/\bwritable\b/notwritable/g if /all.export/;' ${newname};
+XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
+CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
+cfg_set_xrdvalue "${XRDCF}"  __XRD_LOG "${XRD_LOG}"
+cfg_set_xrdvalue "${XRDCF}" __CMSD_LOG "${CMSD_LOG}"
 
-  # Set xrootd site name
-  /usr/bin/perl -pi -e 's/SITENAME/$ENV{SE_NAME}/g;' ${newname};
+## set the xrootd and cmsd PID file
+XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
+CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
+cfg_set_xrdvalue "${XRDCF}"  __XRD_PIDFILE "${XRD_PIDFILE}"
+cfg_set_xrdvalue "${XRDCF}" __CMSD_PIDFILE "${CMSD_PIDFILE}"
 
-  # Replace XRDSHDIR and XRDRUNDIR
-  /usr/bin/perl -pi -e 's/XRDSHDIR/$ENV{XRDSHDIR}/g; s/XRDRUNDIR/$ENV{XRDRUNDIR}/g;' ${newname};
+# ApMon files
+export apmonPidFile="${XRDRUNDIR}/admin/apmon.pid"
+export apmonLogFile="${XRDRUNDIR}/logs/apmon.log"
 
-  # Substitute all the variables into the templates
-  /usr/bin/perl -pi -e 's/LOCALPATHPFX/$ENV{LOCALPATHPFX}/g; s/LOCALROOT/$ENV{LOCALROOT}/g; s/XRDUSER/$ENV{XRDUSER}/g; s/MANAGERHOST/$ENV{MANAGERHOST}/g; s/XRDSERVERPORT/$ENV{XRDSERVERPORT}/g; s/XRDMANAGERPORT/$ENV{XRDMANAGERPORT}/g; s/CMSDSERVERPORT/$ENV{CMSDSERVERPORT}/g; s/CMSDMANAGERPORT/$ENV{CMSDMANAGERPORT}/g;' ${newname};
+## have no idea why this construct but lets keep it for now
+OSSSPACE=$(echo -e "${OSSCACHE}");
 
-  # write storage partitions
-  /usr/bin/perl -pi -e 's/OSSCACHE/$ENV{osscachetmp}/g;' ${newname};
+## Subscribe to all redirector ips and use load-balancing mode
+## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
+(( IS_MANAGER_ALIAS > 1 )) && sed -i '/all\.manager/s/.*/all.manager all $myRedirector+ $portCMSD/' "${XRDCF}"
 
-  # Monalisa stuff which has to be commented out in some cases
-  if [[ -n "${MONALISA_FQDN}" ]] ; then
-    /usr/bin/perl -pi -e 's/MONALISA_HOST/$ENV{MONALISA_FQDN}/g' ${newname};
-  else
-    /usr/bin/perl -pi -e 's/(.*MONALISA_HOST.*)/#\1/g' ${newname};
-  fi
+# Set readonly if set up in the environment
+[[ -n "${XRDREADONLY}" ]] && sed -i '/all.export/s/writable/notwritable/' "${XRDCF}";
 
-  # XrdAcc stuff which has to be commented out in some cases
-  if [[ -n "$ACCLIB" ]] ; then
-    /usr/bin/perl -pi -e 's/ACCLIB/$ENV{ACCLIB}/g' ${newname}
-  else
-    /usr/bin/perl -pi -e 's/(.*ACCLIB.*)/#\1/g; s/(.*ofs\.authorize.*)/#\1/g' ${newname}
-  fi
-
-  # Xrdn2n stuff which has to be commented out in some cases
-  if [[ -z "$LOCALPATHPFX" ]] ; then
-    /usr/bin/perl -pi -e 's/(.*oss\.namelib.*)/#\1/g' ${newname}
-  fi
-
-done;
-
-/bin/unlink ${XRDCONFDIR}/xrootd.cf >&/dev/null; /bin/ln -s ${XRDCONFDIR}/xrootd.xrootd.cf  ${XRDCONFDIR}/xrootd.cf;
-cd -;
-
-[[ ! -e "${LOCALROOT}/${LOCALPATHPFX}"  ]] &&  { echo "${LOCALROOT}/${LOCALPATHPFX} is not found! Please create it as user: ${XRDUSER}!"; exit 1; }
+sed --follow-symlinks -i "
+/myName/s/SITENAME/${SE_NAME}/g;
+s/LOCALPATHPFX/${LOCALPATHPFX}/g;
+s/LOCALROOT/${LOCALROOT}/g;
+s/MANAGERHOST/${MANAGERHOST}/g;
+s/XRDSERVERPORT/${XRDSERVERPORT}/g;
+s/XRDMANAGERPORT/${XRDMANAGERPORT}/g;
+s/CMSDSERVERPORT/${CMSDSERVERPORT}/g;
+s/CMSDMANAGERPORT/${CMSDMANAGERPORT}/g;
+s/OSSCACHE/${OSSSPACE}/g;
+s/MONALISA_HOST/${MONALISA_FQDN}/g;
+s/ACCLIB/${ACCLIB}/g;
+" "${XRDCF}";
 
 }
 
