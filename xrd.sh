@@ -735,7 +735,8 @@ elif [[ "$1" == "-k" ]]; then  ## kill running processes
 elif [[ "$1" == "-logs" ]]; then  ## handlelogs
     handlelogs
 elif [[ "$1" == "-conf" ]]; then  ## create configuration
-    set_system
+    shift
+    set_system "$@"
 elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
 elif [[ "$1" == "-addcron" ]]; then  ## add cron line
@@ -749,7 +750,7 @@ else
     echo " [-c] check and restart if not running";
     echo " [-k] kill running processes";
     echo " [-logs] manage the logs";
-    echo " [-conf] just (re)create configuration";
+    echo " [-conf] just (re)create configuration; optional args : <configuration_template> <xrootd_configuration>";
     echo " [-getkeys] just get keys";
     echo " [-addcron] add/refresh cron line";
     echo " [-limits] generate limits file";
