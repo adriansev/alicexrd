@@ -755,7 +755,12 @@ else
     echo " [-limits] generate limits file";
     echo "";
     echo "Environment variables:";
-    echo "  XRDSH_NOWARN_ASLIB do not warn xrd.sh is sourced"
+    echo "  XRDSH_NOWARN_ASLIB : if set (any value) do not warn xrd.sh is sourced"
+    echo "  XRDREADONLY : if set (any value) export path as not writable - server will not be elected for writes "
+    echo ">>>>>> XRDSH_NOAPMON : if set (any value) ApMon components WILL NOT BE USED"
+    echo "  XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDSHDIR/run/"
+    echo "  XRDCONFDIR : location of system.cnf and XRDCF (default xrootd.xrootd.cf) conf files; if not set it will be XRDSHDIR/xrootd.conf/"
+    echo "  XRDCONF : main configuration file - usually (default) named system.cnf; if not set it will have the value of XRDCONFDIR/system.cnf"
 fi
 }
 
