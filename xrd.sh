@@ -190,7 +190,7 @@ export XRDCONFDIR
 XRDCONF=${XRDCONF:-${XRDCONFDIR}/system.cnf}
 export XRDCONF
 
-[[ -e "${XRDCONF}" -a -f "${XRDCONF}" ]] && source ${XRDCONF} || { echo "Could not find main conf file ${XRDCONF}"; exit 1; }
+[[ -e "${XRDCONF}" ]] && [[ -f "${XRDCONF}" ]] && source ${XRDCONF} || { echo "Could not find main conf file ${XRDCONF}"; exit 1; }
 
 ## Locations and user settings
 USER=${USER:-$LOGNAME}
@@ -231,12 +231,10 @@ if [[ -z "{ARG2}" ]]; then
   [[ "${ext}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
 
   XRDCF="${DIR_NAME}/${FILE_NAME}"
-
-  cp -f ${XRDCF_TMP} ${XRDCF}
 fi
 
-export "${XRDCF_TMP}" "${XRDCF}"
-
+cp -f ${XRDCF_TMP} ${XRDCF}
+export XRDCF_TMP XRDCF
 }
 
 ######################################
@@ -244,11 +242,10 @@ export "${XRDCF_TMP}" "${XRDCF}"
 serverinfo () {
 # if XRDCONF is not set (by getLocations) we must run it passing the serverinfo args to getLocations
 # this is needed for customization of template and final xrootd configuration file
-[[ -z "${XRDCONF}" ]] && getLocations "$@"
+getLocations "$@"
 
 ## if SE_NAME not found in system.cnf
 [[ -z "${SE_NAME}" ]] && { echo "SE name is not defined in system.cnf!" && exit 1; }
-
 echo "Found SE_NAME=${SE_NAME}"
 
 ## Get SE info from MonaLisa and check if the SE name is valid; try 3 times before fail and exit
@@ -259,6 +256,7 @@ ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
 ## Validate the ip - make sure is a public one and the reverse match the defined hostname
 # get my ip
 local MYNET MYIP REVERSE
+
 MYNET=$(${CURLCMD} ${ALIMON_IP_URL})
 [[ -z "${MYNET}" ]] && { sleep 1; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
 [[ -z "${MYNET}" ]] && { sleep 2; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
@@ -287,7 +285,7 @@ echo "The fully qualified hostname appears to be ${MYHNAME}"
 
 ## get SE information from MonaLisa and validate SE_NAME
 local SE_INFO
-SE_INFO=$(${CURLCMD} ${ALIMON_URL};)
+SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};)
 [[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};); }
 [[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};); }
 [[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
@@ -384,29 +382,28 @@ cfg_set_xrdvalue "${XRDCF}" __CMSD_PIDFILE "${CMSD_PIDFILE}"
 export apmonPidFile="${XRDRUNDIR}/admin/apmon.pid"
 export apmonLogFile="${XRDRUNDIR}/logs/apmon.log"
 
-## have no idea why this construct but lets keep it for now
-OSSSPACE=$(echo -e "${OSSCACHE}");
-
 ## Subscribe to all redirector ips and use load-balancing mode
 ## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
-(( IS_MANAGER_ALIAS > 1 )) && sed -i '/all\.manager/s/.*/all.manager all $myRedirector+ $portCMSD/' "${XRDCF}"
+(( IS_MANAGER_ALIAS > 1 )) && sed --follow-symlinks -i '/all\.manager/s/.*/all.manager all $myRedirector+ $portCMSD/' "${XRDCF}"
 
 # Set readonly if set up in the environment
-[[ -n "${XRDREADONLY}" ]] && sed -i '/all.export/s/writable/notwritable/' "${XRDCF}";
+[[ -n "${XRDREADONLY}" ]] && sed --follow-symlinks -i '/all.export/s/writable/notwritable/' "${XRDCF}";
 
 sed --follow-symlinks -i "
-/myName/s/SITENAME/${SE_NAME}/g;
-s/LOCALPATHPFX/${LOCALPATHPFX}/g;
-s/LOCALROOT/${LOCALROOT}/g;
-s/MANAGERHOST/${MANAGERHOST}/g;
-s/XRDSERVERPORT/${XRDSERVERPORT}/g;
-s/XRDMANAGERPORT/${XRDMANAGERPORT}/g;
-s/CMSDSERVERPORT/${CMSDSERVERPORT}/g;
-s/CMSDMANAGERPORT/${CMSDMANAGERPORT}/g;
-s/OSSCACHE/${OSSSPACE}/g;
-s/MONALISA_HOST/${MONALISA_FQDN}/g;
-s/ACCLIB/${ACCLIB}/g;
+s#SITENAME#${SE_NAME}#g;
+s#MANAGERHOST#${MANAGERHOST}#g;
+s#LOCALPATHPFX#${LOCALPATHPFX}#g;
+s#LOCALROOT#${LOCALROOT}#g;
+s#XRDSERVERPORT#${XRDSERVERPORT}#g;
+s#XRDMANAGERPORT#${XRDMANAGERPORT}#g;
+s#CMSDSERVERPORT#${CMSDSERVERPORT}#g;
+s#CMSDMANAGERPORT#${CMSDMANAGERPORT}#g;
+s#MONALISA_HOST#${MONALISA_FQDN}#g;
+s#ACCLIB#${ACCLIB}#g;
 " "${XRDCF}";
+
+# write storage partitions; convert the /n to actual CRs and then pass that variable to perl; (otherwise it needs to be exported)
+SPACE=$(echo -e ${OSSCACHE}) perl -pi -e 's/OSSCACHE/$ENV{SPACE}/g;' "${XRDCF}";
 
 }
 
