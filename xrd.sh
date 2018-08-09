@@ -437,25 +437,7 @@ create_tkauthz() {
 
 ######################################
 checkkeys() {
-  ## find the location of xrd.sh script
-  local SOURCE=""
-  local XRDSHDIR=""
-
-  SOURCE="${BASH_SOURCE[0]}"
-  while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
-    XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" #"
-    SOURCE="$(readlink "${SOURCE}")"
-    [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-  done
-
-  XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" #"
-
-  ## automatically asume that the owner of location of xrd.sh is XRDUSER
-  local XRDUSER=$(/usr/bin/stat -c %U $XRDSHDIR)
-
-  ## get the home dir of the designated xrd user
-  local XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
-  [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; return 10;}
+  getLocations
 
   local KEYS_REPO="http://alitorrent.cern.ch/src/xrd3/keys/"
   local authz_dir1="/etc/grid-security/xrootd/"
@@ -465,7 +447,7 @@ checkkeys() {
   local authz_dir=${authz_dir3} # default dir
 
   for dir in ${authz_dir1} ${authz_dir2} ${authz_dir3}; do  ## unless keys are found in locations searched by xrootd
-    [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && return 0
+    [[ -e ${dir}/privkey.pem && -e ${dir}/pubkey.pem ]] && return 0;
   done
 
   [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
@@ -773,7 +755,7 @@ else
     echo " [-limits] generate limits file";
     echo "";
     echo "Environment variables:";
-    echo "  XRDSH_NOWARN_ASLIB  do not warn xrd.sh is sourced"
+    echo "  XRDSH_NOWARN_ASLIB do not warn xrd.sh is sourced"
 fi
 }
 
