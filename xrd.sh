@@ -171,32 +171,80 @@ while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a sy
   SOURCE="$(readlink "${SOURCE}")" ##"
   [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
-XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
 
+XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
 export XRDSHDIR
 
 # make sure xrd.sh is executable by user and user group
-/bin/chmod ug+x ${XRDSHDIR}/xrd.sh
+/bin/chmod ug+x "${XRDSHDIR}/xrd.sh"
 
 # location of logs, admin, core dirs
 XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}
 export XRDRUNDIR
 
-# location of configuration files; needs not be the same with xrd.sh location
+# location of configuration files; does not need to be in the same location with xrd.sh
 XRDCONFDIR=${XRDCONFDIR:-${XRDSHDIR}/xrootd.conf/}
 export XRDCONFDIR
 
 ## LOCATIONS AND INFORMATIONS
-XRDCONF="${XRDCONFDIR}/system.cnf"
+XRDCONF=${XRDCONF:-${XRDCONFDIR}/system.cnf}
 export XRDCONF
 
-[[ -e "${XRDCONF}" -a -f "${XRDCONF}" ]] && source ${XRDCONF} || { echo "Could not find for sourcing ${XRDCONF}"; exit1; }
+[[ -e "${XRDCONF}" -a -f "${XRDCONF}" ]] && source ${XRDCONF} || { echo "Could not find main conf file ${XRDCONF}"; exit 1; }
+
+## Locations and user settings
+USER=${USER:-$LOGNAME}
+[[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
+SCRIPTUSER=$USER
+
+## automatically asume that the owner of location of xrd.sh is XRDUSER
+XRDUSER=$(/usr/bin/stat -c %U ${XRDSHDIR})
+
+## get the home dir of the designated xrd user
+XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
+[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
+
+## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
+[[ ! -e "${LOCALROOT}/${LOCALPATHPFX}"  ]] &&  { echo "LOCALROOT/LOCALPATHPFX : ${LOCALROOT}/${LOCALPATHPFX} not found! Please create it as user: ${XRDUSER}!"; exit 1; }
+
+## Treatment of arguments
+local FILE_NAME DIR_NAME EXT ARG1 ARG2
+XRDCF_TMP="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
+
+ARG1="${1}"
+ARG2="${2}"
+
+[[ -n "${ARG1}" ]] && XRDCF_TMP="${ARG1}"
+[[ -n "${ARG2}" ]] && XRDCF="${ARG2}"
+
+# check if template file is present - required
+[[ ! -e "${XRDCF_TMP}" ]] && { echo "not found template file - ${XRDCF_TMP} "; exit 1; }
+
+# if configuration file is not specified (ARG2) then remove the tmp extension from template and use that name
+# even if no ARG1 is given the same procedure must be done for the default XRDCF_TMP
+if [[ -z "{ARG2}" ]]; then
+  FILE_NAME=$(/usr/bin/basename ${XRDCF_TMP})
+  DIR_NAME=$(/usr/bin/dirname ${XRDCF_TMP})
+
+  filename=$(/usr/bin/basename -- "${XRDCF_TMP}")
+  ext="${XRDCF_TMP##*.}"
+  [[ "${ext}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
+
+  XRDCF="${DIR_NAME}/${FILE_NAME}"
+
+  cp -f ${XRDCF_TMP} ${XRDCF}
+fi
+
+export "${XRDCF_TMP}" "${XRDCF}"
+
 }
 
 ######################################
 ##  Get all relevant server information from MonaLisa
 serverinfo () {
-[[ -z "${XRDCONF}" ]] && getLocations
+# if XRDCONF is not set (by getLocations) we must run it passing the serverinfo args to getLocations
+# this is needed for customization of template and final xrootd configuration file
+[[ -z "${XRDCONF}" ]] && getLocations "$@"
 
 ## if SE_NAME not found in system.cnf
 [[ -z "${SE_NAME}" ]] && { echo "SE name is not defined in system.cnf!" && exit 1; }
@@ -295,57 +343,17 @@ export MANAGER_ALIAS
 set_system () {
 # Get all upstream server info (after first source of system.cnf);
 # it will get also the locations of configurations and scripts
-serverinfo
 
-## Locations and user settings
-USER=${USER:-$LOGNAME}
-[[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
-SCRIPTUSER=$USER
-
-## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(/usr/bin/stat -c %U ${XRDSHDIR})
-
-## get the home dir of the designated xrd user
-XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
-[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
-
-## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
-[[ ! -e "${LOCALROOT}/${LOCALPATHPFX}"  ]] &&  { echo "LOCALROOT/LOCALPATHPFX : ${LOCALROOT}/${LOCALPATHPFX} not found! Please create it as user: ${XRDUSER}!"; exit 1; }
-
-## Treatment of arguments
-local XRDCF XRDCF_TMP FILE_NAME DIR_NAME EXT ARG1 ARG2
-XRDCF_TMP="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
-
-ARG1="${1}"
-ARG2="${2}"
-
-[[ -n "${ARG1}" ]] && XRDCF_TMP="${ARG1}"
-[[ -n "${ARG2}" ]] && XRDCF="${ARG2}"
-
-# check if template file is present - required
-[[ ! -e "${XRDCF_TMP}" ]] && { echo "not found template file - ${XRDCF_TMP} "; exit 1; }
-
-# if configuration file is not specified (ARG2) then remove the tmp extension from template and use that name
-# even if no ARG1 is given the same procedure must be done for the default XRDCF_TMP
-if [[ -z "{ARG2}" ]]; then
-  FILE_NAME=$(/usr/bin/basename ${XRDCF_TMP})
-  DIR_NAME=$(/usr/bin/dirname ${XRDCF_TMP})
-
-  filename=$(/usr/bin/basename -- "${XRDCF_TMP}")
-  ext="${XRDCF_TMP##*.}"
-  [[ "${ext}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
-
-  XRDCF="${DIR_NAME}/${FILE_NAME}"
-
-  cp ${XRDCF_TMP} ${XRDCF}
-fi
+# we must pass the set_system args to serverinfo
+# this is needed for customization of template and final xrootd configuration file
+serverinfo "$@"
 
 #######################
 ## Customize XRDCF file
 #######################
-
-echo "xrdsh dir is : ${XRDSHDIR}"
-echo "xrdconfdir is : ${XRDCONFDIR}"
+echo "XRDSH dir is : ${XRDSHDIR}"
+echo "XRDCONFDIR is : ${XRDCONFDIR}"
+echo "XRDCF file is : ${XRDCF}"
 
 ## if set in system.cnf set the debug value in configuration file
 if [[ -n "${XRDDEBUG}" ]]; then
