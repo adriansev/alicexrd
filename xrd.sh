@@ -25,7 +25,7 @@ echo_success() {
   echo -n $"OK"
   [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
   echo -n "  ]"
-  echo -ne "\r"
+  echo -ne "\\r"
   return 0
 }
 
@@ -37,7 +37,7 @@ echo_failure() {
   echo -n $"DOWN"
   [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
   echo -n "  ]"
-  echo -ne "\r"
+  echo -ne "\\r"
   return 1
 }
 
@@ -49,21 +49,21 @@ echo_passed() {
   echo -n $"PASSED"
   [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
   echo -n "]"
-  echo -ne "\r"
+  echo -ne "\\r"
   return 0
 }
 
 ######################################
 startUp() {
     if [[ "${SCRIPTUSER}" == "root" ]]; then
-      cd "${XRDSHDIR}"
-      /bin/su -s /bin/bash $XRDUSER -c "${EXECENV} $*";
+      cd "${XRDSHDIR}" || { echo "Could not cd to ${XRDSHDIR}"; exit 1; }
+      /bin/su -s /bin/bash "${XRDUSER}" -c "${EXECENV} $*";
       echo_passed
       # test $? -eq 0 && echo_success || echo_failure
       echo
     else
       ulimit -c unlimited
-      $*
+      "$@"
       echo_passed
       # test $? -eq 0 && echo_success || echo_failure
       echo
@@ -72,12 +72,12 @@ startUp() {
 
 ######################################
 getPidFiles_xrd () {
-ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= "$(/usr/bin/pgrep -x xrootd)" | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
 getPidFiles_cmsd () {
-ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= "$(/usr/bin/pgrep -x cmsd)" | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
@@ -130,7 +130,7 @@ startXRDserv () {
 local CFG="$1"
 
 ## get __XRD_ server arguments from config file.
-eval $(sed -ne 's/\#@@//gp;' ${CFG})
+eval "$(sed -ne 's/\#@@//gp;' ${CFG})"
 
 ## make sure that they are defined
 [[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
@@ -139,7 +139,7 @@ eval $(sed -ne 's/\#@@//gp;' ${CFG})
 [[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
 
 local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
-eval ${XRD_START}
+eval "${XRD_START}"
 }
 
 ######################################
@@ -147,7 +147,7 @@ startCMSDserv () {
 local CFG="$1"
 
 ## get __CMSD_ server arguments from config file.
-eval $(sed -ne 's/\#@@//gp;' ${CFG})
+eval "$(sed -ne 's/\#@@//gp;' ${CFG})"
 
 ## make sure that they are defined
 [[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
@@ -156,7 +156,7 @@ eval $(sed -ne 's/\#@@//gp;' ${CFG})
 [[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
 
 local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
-eval ${CMSD_START}
+eval "${CMSD_START}"
 }
 
 ######################################
@@ -190,7 +190,7 @@ export XRDCONFDIR
 XRDCONF=${XRDCONF:-${XRDCONFDIR}/system.cnf}
 export XRDCONF
 
-[[ -e "${XRDCONF}" ]] && [[ -f "${XRDCONF}" ]] && source ${XRDCONF} || { echo "Could not find main conf file ${XRDCONF}"; exit 1; }
+[[ -e "${XRDCONF}" && -f "${XRDCONF}" ]] && source "${XRDCONF}" || { echo "Could not find main conf file ${XRDCONF}"; exit 1; }
 
 ## Locations and user settings
 USER=${USER:-$LOGNAME}
@@ -198,10 +198,10 @@ USER=${USER:-$LOGNAME}
 SCRIPTUSER=$USER
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(/usr/bin/stat -c %U ${XRDSHDIR})
+XRDUSER=$(/usr/bin/stat -c %U "${XRDSHDIR}")
 
 ## get the home dir of the designated xrd user
-XRDHOME=$(getent passwd ${XRDUSER} | awk -F: '{print $(NF-1)}') #'
+XRDHOME=$(getent passwd "${XRDUSER}" | awk -F: '{print $(NF-1)}') #'
 [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
 
 ## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
@@ -222,18 +222,18 @@ ARG2="${2}"
 
 # if configuration file is not specified (ARG2) then remove the tmp extension from template and use that name
 # even if no ARG1 is given the same procedure must be done for the default XRDCF_TMP
-if [[ -z "{ARG2}" ]]; then
-  FILE_NAME=$(/usr/bin/basename ${XRDCF_TMP})
-  DIR_NAME=$(/usr/bin/dirname ${XRDCF_TMP})
+if [[ -z "${ARG2}" ]]; then
+  FILE_NAME=$(/usr/bin/basename "${XRDCF_TMP}")
+  DIR_NAME=$(/usr/bin/dirname "${XRDCF_TMP}")
 
-  filename=$(/usr/bin/basename -- "${XRDCF_TMP}")
-  ext="${XRDCF_TMP##*.}"
-  [[ "${ext}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
+  EXT="${XRDCF_TMP##*.}"
+  [[ "${EXT}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
 
+  FILE_NAME=$(/usr/bin/basename "${XRDCF_TMP}" .tmp)
   XRDCF="${DIR_NAME}/${FILE_NAME}"
 fi
 
-cp -f ${XRDCF_TMP} ${XRDCF}
+cp -f "${XRDCF_TMP}" "${XRDCF}"
 export XRDCF_TMP XRDCF
 }
 
@@ -257,9 +257,9 @@ ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
 # get my ip
 local MYNET MYIP REVERSE
 
-MYNET=$(${CURLCMD} ${ALIMON_IP_URL})
-[[ -z "${MYNET}" ]] && { sleep 1; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
-[[ -z "${MYNET}" ]] && { sleep 2; MYNET=$(${CURLCMD} ${ALIMON_IP_URL}); }
+MYNET=$("${CURLCMD}" "${ALIMON_IP_URL}")
+[[ -z "${MYNET}" ]] && { sleep 1; MYNET=$("${CURLCMD}" "${ALIMON_IP_URL}"); }
+[[ -z "${MYNET}" ]] && { sleep 2; MYNET=$("${CURLCMD}" "${ALIMON_IP_URL}"); }
 [[ -z "${MYNET}" ]] && { echo "MYNET not found, maybe bad connectivity to alimonitor?" && exit 1; }
 
 ## Network information and validity checking
@@ -285,9 +285,9 @@ echo "The fully qualified hostname appears to be ${MYHNAME}"
 
 ## get SE information from MonaLisa and validate SE_NAME
 local SE_INFO
-SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};)
-[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};); }
-[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(${CURLCMD} ${ALIMON_SE_URL};); }
+SE_INFO=$("${CURLCMD}" "${ALIMON_SE_URL}";)
+[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$("${CURLCMD}" "${ALIMON_SE_URL}";); }
+[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$("${CURLCMD}" "${ALIMON_SE_URL}";); }
 [[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
 
 ## Find information about site from ML
@@ -297,7 +297,7 @@ MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | hea
 MANAGER_HOST_PORT=$( /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${SE_INFO}" ) #'
 IFS=':' read -r -a mgr_host_port_arr <<< "${MANAGER_HOST_PORT}"
 MANAGERHOST="${mgr_host_port_arr[0]}"
-MANAGERPORT="${mgr_host_port_arr[1]}"
+#MANAGERPORT="${mgr_host_port_arr[1]}"
 
 LOCALPATHPFX=$(/bin/awk -F": " '/seStoragePath/ {print $2;}'  <<< "${SE_INFO}" ) #'
 
@@ -309,7 +309,7 @@ ROLE="server"
 
 # ipv4 ips recorded to the manager fqdn
 local DNS_QUERY_IPv4 MANAGER_IP_LIST
-DNS_QUERY_IPv4=$(host -t A ${MANAGERHOST})
+DNS_QUERY_IPv4=$(host -t A "${MANAGERHOST}")
 [[ "${DNS_QUERY_IPv4}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv4}" =~ NXDOMAIN ]] && DNS_QUERY_IPv4=""
 MANAGER_IP_LIST=$(/bin/awk '{print $NF;}' <<< "${DNS_QUERY_IPv4}") #'
 
@@ -321,7 +321,7 @@ MANAGER_IP_LIST=$(/bin/awk '{print $NF;}' <<< "${DNS_QUERY_IPv4}") #'
 # MANAGER_IPv6_LIST=$(/bin/awk '{print $NF;}'  <<< "${DNS_QUERY_IPv6}") #'
 
 #is my ip in manager ip list; so far we check only for ipv4 as storage have to be dual-stack anyway
-[[ "${MANAGER_IP_LIST}" =~ "${MYIP}" ]] && { is_manager="1"; ROLE="manager"; }
+[[ "${MANAGER_IP_LIST}" =~ ${MYIP} ]] && { is_manager="1"; ROLE="manager"; }
 
 ## if MANGERHOST fqdn is an alias then register servers to all ips
 MANAGER_ALIAS=$(echo "${MANAGER_IP_LIST}" | /usr/bin/wc -l)
@@ -427,9 +427,9 @@ create_tkauthz() {
 
   echo "KEY VO:* PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem"
 
-  ) > ${TK_FILE}
+  ) > "${TK_FILE}"
 
-  /bin/chmod 600 ${TK_FILE}
+  /bin/chmod 600 "${TK_FILE}"
 }
 
 ######################################
