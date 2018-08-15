@@ -190,7 +190,13 @@ export XRDCONFDIR
 XRDCONF=${XRDCONF:-${XRDCONFDIR}/system.cnf}
 export XRDCONF
 
-[[ -e "${XRDCONF}" && -f "${XRDCONF}" ]] && source "${XRDCONF}" || { echo "Could not find main conf file ${XRDCONF}"; exit 1; }
+if [[ -e "${XRDCONF}" && -f "${XRDCONF}" ]]; then
+  # shellcheck source=/dev/null
+  source "${XRDCONF}";
+else
+  echo "Could not find main conf file ${XRDCONF}";
+  exit 1;
+fi
 
 ## Locations and user settings
 USER=${USER:-$LOGNAME}
@@ -205,7 +211,10 @@ XRDHOME=$(getent passwd "${XRDUSER}" | awk -F: '{print $(NF-1)}') #'
 [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
 
 ## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
-[[ ! -e "${LOCALROOT}/${LOCALPATHPFX}"  ]] &&  { echo "LOCALROOT/LOCALPATHPFX : ${LOCALROOT}/${LOCALPATHPFX} not found! Please create it as user: ${XRDUSER}!"; exit 1; }
+if [[ ! -e "${LOCALROOT}/${LOCALPATHPFX}" ]]; then
+  echo "LOCALROOT/LOCALPATHPFX : ${LOCALROOT}/${LOCALPATHPFX} not found! Please create it as user: ${XRDUSER}!";
+  exit 1;
+fi
 
 ## Treatment of arguments
 local FILE_NAME DIR_NAME EXT ARG1 ARG2
@@ -257,9 +266,9 @@ ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
 # get my ip
 local MYNET MYIP REVERSE
 
-MYNET=$("${CURLCMD}" "${ALIMON_IP_URL}")
-[[ -z "${MYNET}" ]] && { sleep 1; MYNET=$("${CURLCMD}" "${ALIMON_IP_URL}"); }
-[[ -z "${MYNET}" ]] && { sleep 2; MYNET=$("${CURLCMD}" "${ALIMON_IP_URL}"); }
+MYNET=$(eval "${CURLCMD}" "${ALIMON_IP_URL}")
+[[ -z "${MYNET}" ]] && { sleep 1; MYNET=$(eval "${CURLCMD}" "${ALIMON_IP_URL}"); }
+[[ -z "${MYNET}" ]] && { sleep 2; MYNET=$(eval "${CURLCMD}" "${ALIMON_IP_URL}"); }
 [[ -z "${MYNET}" ]] && { echo "MYNET not found, maybe bad connectivity to alimonitor?" && exit 1; }
 
 ## Network information and validity checking
@@ -285,9 +294,9 @@ echo "The fully qualified hostname appears to be ${MYHNAME}"
 
 ## get SE information from MonaLisa and validate SE_NAME
 local SE_INFO
-SE_INFO=$("${CURLCMD}" "${ALIMON_SE_URL}";)
-[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$("${CURLCMD}" "${ALIMON_SE_URL}";); }
-[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$("${CURLCMD}" "${ALIMON_SE_URL}";); }
+SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";)
+[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
+[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
 [[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
 
 ## Find information about site from ML
@@ -403,7 +412,7 @@ s#ACCLIB#${ACCLIB}#g;
 " "${XRDCF}";
 
 # write storage partitions; convert the /n to actual CRs and then pass that variable to perl; (otherwise it needs to be exported)
-SPACE=$(echo -e ${OSSCACHE}) perl -pi -e 's/OSSCACHE/$ENV{SPACE}/g;' "${XRDCF}";
+SPACE=$(echo -e "${OSSCACHE}") perl -pi -e 's/OSSCACHE/$ENV{SPACE}/g;' "${XRDCF}";
 
 }
 
@@ -448,17 +457,15 @@ checkkeys() {
   done
 
   [[ $(/usr/bin/id -u) == "0" ]] && authz_dir=${authz_dir1}
-  /bin/mkdir -p ${authz_dir}
+  /bin/mkdir -p "${authz_dir}"
   echo "Getting Keys and bootstrapping ${authz_dir}/TkAuthz.Authorization ..."
 
-  cd ${authz_dir}
-  /usr/bin/curl -fsSLk -O ${KEYS_REPO}/pubkey.pem -O ${KEYS_REPO}/privkey.pem
-  /bin/chmod 400 ${authz_dir}/privkey.pem ${authz_dir}/pubkey.pem
+  /usr/bin/curl -fsSLk -o "${authz_dir}/pubkey.pem" "${KEYS_REPO}/pubkey.pem" -o "${authz_dir}/privkey.pem" "${KEYS_REPO}/privkey.pem"
+  /bin/chmod 400 "${authz_dir}/privkey.pem" "${authz_dir}/pubkey.pem"
 
-  create_tkauthz ${authz_dir}
-  /bin/chown -R ${XRDUSER} ${XRDHOME}/.authz
+  create_tkauthz "${authz_dir}"
+  /bin/chown -R "${XRDUSER}" "${XRDHOME}/.authz"
 
-cd ~
 }
 
 ######################################
@@ -473,17 +480,17 @@ removecron() {
 addcron() {
   getLocations
   removecron # clean up the old xrd.sh cron line
-  cron_file="/tmp/cron.$RANDOM.xrd.sh";
-  /usr/bin/crontab -l > ${cron_file}; # get current crontab
+  cron_file="/tmp/cron.${RANDOM}.xrd.sh";
+  /usr/bin/crontab -l > "${cron_file}"; # get current crontab
 
   ## add to cron_file the xrd.sh command
   echo -ne "\
-*/5 * * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
-0   3 * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -logs >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n\
-@reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\n" >> ${cron_file}
+*/5 * * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n
+0   3 * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -logs >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n
+@reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n" >> ${cron_file}
 
-  /usr/bin/crontab ${cron_file}; # put back the cron with xrd.sh
-  /bin/rm -f ${cron_file};
+  /usr/bin/crontab "${cron_file}"; # put back the cron with xrd.sh
+  /bin/rm -f "${cron_file}";
 }
 
 
@@ -494,8 +501,8 @@ getSrvToMon() {
 
   for typ in manager server ; do
     for srv in xrootd cmsd ; do
-      pid=$(/usr/bin/pgrep -f -U $USER "$srv .*$typ" | head -1)
-      [[ -n "${pid}" ]] && srvToMon="$srvToMon ${se}${typ}_${srv} $pid"
+      pid=$(/usr/bin/pgrep -f -U "$USER" "$srv .*$typ" | head -1)
+      [[ -n "${pid}" ]] && srvToMon="${srvToMon} ${se}${typ}_${srv} ${pid}"
     done
   done
 }
@@ -504,7 +511,7 @@ getSrvToMon() {
 servMon() {
   [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_"
 
-  startUp /usr/sbin/servMon.sh -p ${apmonPidFile} ${se}xrootd $*
+  startUp /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" "$@"
   echo
 }
 
@@ -513,8 +520,8 @@ startMon() {
     [[ -z "${MONALISA_HOST}" ]] && return
 
     getSrvToMon
-    echo -n "Starting ApMon [$srvToMon] ..."
-    servMon -f $srvToMon
+    echo -n "Starting ApMon [${srvToMon}] ..."
+    servMon -f "${srvToMon}"
     echo_passed
     echo
 }
@@ -544,34 +551,36 @@ echo "try : sudo cp ${FILE} /etc/security/limits.d/"
 ######################################
 handlelogs() {
   getLocations
-  cd ${XRDRUNDIR}
-  /bin/mkdir -p ${XRDRUNDIR}/logsbackup
-  local LOCK=${XRDRUNDIR}/logs/HANDLELOGS.lock
+  cd "${XRDRUNDIR}" || { echo "XRDRUNDIR not found"; return 1; }
+  /bin/mkdir -p "${XRDRUNDIR}/logsbackup"
+  local LOCK
+  LOCK="${XRDRUNDIR}/logs/HANDLELOGS.lock"
   #local todaynow=$(date +%Y%m%d_%k%M%S)
 
-  cd ${XRDRUNDIR}/logs
+  cd "${XRDRUNDIR}/logs" || { echo "XRDRUNDIR/logs not found"; return 1; }
   not_compressed=$(/bin/find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
 
-  if [[ ! -f ${LOCK} ]]; then
-    touch ${LOCK}
-    for log in $not_compressed; do /usr/bin/bzip2 -9fq $log; done
-    /bin/rm -f ${LOCK}
+  if [[ ! -f "${LOCK}" ]]; then
+    touch "${LOCK}"
+    for log in ${not_compressed}; do /usr/bin/bzip2 -9fq "${log}"; done
+    /bin/rm -f "${LOCK}"
   fi
 
   # move compressed to logs backup
-  mv -f ${XRDRUNDIR}/logs/*/*.bz2 ${XRDRUNDIR}/logsbackup/ &> /dev/null
+  find "${XRDRUNDIR}/logs/" -type f -name "*log.*.bz2" -exec mv '{}' "${XRDRUNDIR}/logsbackup/" \; &> /dev/null
 }
 
 ######################################
 execEnvironment() {
-    /bin/mkdir -p ${XRDRUNDIR}/logs/
-    /bin/mkdir -p ${XRDRUNDIR}/core/${USER}_$1
-    /bin/mkdir -p ${XRDRUNDIR}/admin/
+    /bin/mkdir -p "${XRDRUNDIR}/logs/" "${XRDRUNDIR}/admin/" "${XRDRUNDIR}/core/${USER}_${1}"
+    /bin/chmod -R 755 "${XRDRUNDIR}/logs" "${XRDRUNDIR}/admin" "${XRDRUNDIR}/core"
+
+    /bin/chown -R "${XRDUSER}" "${XRDRUNDIR}/core" "${XRDRUNDIR}/logs" "${XRDRUNDIR}/admin"
 
     ULIM_OPENF=$(ulimit -n)
     ULIM_USR_PROC=$(ulimit -u)
 
-    ulimit -n ${XRDMAXFD}
+    ulimit -n "${XRDMAXFD}"
 
     if (( ULIM_OPENF < XRDMAXFD )) ; then
       echo "Fatal: This machine does not allow more than ${XRDMAXFD} file descriptors. At least 65000 are needed for serious operation"
@@ -585,24 +594,22 @@ execEnvironment() {
         echo "use xrd.sh -limits for generating the limits file"
     fi
 
-    /bin/chown -R $XRDUSER ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
-    /bin/chmod -R 755 ${XRDRUNDIR}/core ${XRDRUNDIR}/logs ${XRDRUNDIR}/admin
 }
 
 ######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
 
-    /usr/bin/pkill -u $USER xrootd
-    /usr/bin/pkill -u $USER cmsd
+    /usr/bin/pkill -u "${USER}" xrootd
+    /usr/bin/pkill -u "${USER}" cmsd
     /bin/sleep 1
-    /usr/bin/pkill -9 -u $USER xrootd
-    /usr/bin/pkill -9 -u $USER cmsd
+    /usr/bin/pkill -9 -u "${USER}" xrootd
+    /usr/bin/pkill -9 -u "${USER}" cmsd
 
     echo_passed;
     echo
 
-    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u $USER mpxstats; }
+    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${USER}" mpxstats; }
 
 }
 
@@ -612,14 +619,14 @@ restartXRD() {
     killXRD
 
     set_system
-    execEnvironment ${INSTANCE_NAME} || exit
+    execEnvironment "${INSTANCE_NAME}" || exit
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
     echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
-    startUp startCMSDserv ${XRDCONFDIR}/xrootd.cf
+    startUp startCMSDserv "${XRDCONFDIR}/xrootd.cf"
 
     echo -n "Starting xrootd [${INSTANCE_NAME}]: "
-    startUp startXRDserv ${XRDCONFDIR}/xrootd.cf
+    startUp startXRDserv "${XRDCONFDIR}/xrootd.cf"
 
     sleep 1
     [[ -z "${XRDSH_NOAPMON}" ]] && { startMon; sleep 1; }
@@ -632,12 +639,12 @@ echo "******************************************"
 date
 echo "******************************************"
 
-nxrd=$(/usr/bin/pgrep -u $USER xrootd | wc -l);
-ncms=$(/usr/bin/pgrep -u $USER cmsd   | wc -l);
+nxrd=$(/usr/bin/pgrep -u "${USER}" xrootd | wc -l);
+ncms=$(/usr/bin/pgrep -u "${USER}" cmsd   | wc -l);
 
 returnval=0
 
-if (( nxrd == nproc )); then
+if (( nxrd >= 1 )); then
   echo -n "xrootd:";
   echo_success;
   echo
@@ -648,7 +655,7 @@ else
   returnval=1;
 fi
 
-if (( ncms == nproc )) ; then
+if (( ncms >= 1 )) ; then
   echo -n "cmsd :";
   echo_success;
   echo
@@ -661,7 +668,7 @@ fi
 
 
 if [[ -z "${XRDSH_NOAPMON}" ]]; then
-    [[ -n "${MONALISA_HOST}" ]] && lines=$(/bin/find ${apmonPidFile}* 2>/dev/null | /usr/bin/wc -l)
+    [[ -n "${MONALISA_HOST}" ]] && lines=$(/bin/find "${apmonPidFile}*" 2>/dev/null | /usr/bin/wc -l)
 
     if (( lines > 0 )) ; then
       echo -n "apmon:";
@@ -676,7 +683,7 @@ if [[ -z "${XRDSH_NOAPMON}" ]]; then
 
 fi
 
-return ${returnval}
+return "${returnval}"
 }
 
 ######################
@@ -689,16 +696,16 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     checkkeys
 
     ## check the number of xrootd and cmsd processes
-    nxrd=$(/usr/bin/pgrep -u $USER xrootd | /usr/bin/wc -l)
-    ncms=$(/usr/bin/pgrep -u $USER cmsd   | /usr/bin/wc -l)
+    nxrd=$(/usr/bin/pgrep -u "${USER}" xrootd | /usr/bin/wc -l)
+    ncms=$(/usr/bin/pgrep -u "${USER}" cmsd   | /usr/bin/wc -l)
 
     ## if their number is lower than it should (number given by the roles)
-    if (( (nxrd < nproc) || (ncms < nproc) )) ; then
+    if (( (nxrd < 1) || (ncms < 1) )) ; then
       /bin/date
       echo "------------------------------------------"
       /bin/ps
       echo "------------------------------------------"
-      echo "Starting all .... (only $nxrd xrootds $ncms cmsds)"
+      echo "Starting all .... (only ${nxrd} xrootds ${ncms} cmsds)"
       restartXRD
       echo "------------------------------------------"
     fi
