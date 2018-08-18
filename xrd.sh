@@ -133,6 +133,7 @@ local CFG="$1"
 eval "$(sed -ne 's/\#@@//gp;' ${CFG})"
 
 ## make sure that they are defined
+# shellcheck disable=2153
 [[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
 
 ## not matter how is enabled the debug mode means -d
@@ -150,6 +151,7 @@ local CFG="$1"
 eval "$(sed -ne 's/\#@@//gp;' ${CFG})"
 
 ## make sure that they are defined
+# shellcheck disable=2153
 [[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
 
 ## not matter how is enabled the debug mode means -d
@@ -218,10 +220,30 @@ fi
 
 ## Treatment of arguments
 local FILE_NAME DIR_NAME EXT ARG1 ARG2
+# default xrootd configuration template
 XRDCF_TMP="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
 
 ARG1="${1}"
 ARG2="${2}"
+
+# if XRD_DONOTRECONF is enabled then if argument is present it should be the XRDCF
+if [[ -n "${XRD_DONOTRECONF}" ]]; then
+  # if there is no explicit XRDCF then juts use the default name without .tmp extension
+  if [[ -z "${ARG1}"  ]]; then
+    DIR_NAME=$(/usr/bin/dirname "${XRDCF_TMP}")
+    FILE_NAME=$(/usr/bin/basename "${XRDCF_TMP}" .tmp)
+    XRDCF="${DIR_NAME}/${FILE_NAME}"
+  else
+    # an argument was passed to getLocations function; we assume that is the name of xrootd configuration file
+    [[ ! -e "${ARG1}" ]] && { echo "getLocations :: XRD_DONOTRECONF enabled :: configuration file >>> ${ARG1} <<< not found!!!"; exit 1; }
+    XRDCF="${ARG1}"
+  fi
+
+  # we reset the default value of XRDCF_TMP to a warning message that should be visible at services start
+  XRDCF_TMP=">>>   XRD_DONOTRECONF enabled   <<< template file not used!"
+  export XRDCF_TMP XRDCF
+  return 0;
+fi
 
 [[ -n "${ARG1}" ]] && XRDCF_TMP="${ARG1}"
 [[ -n "${ARG2}" ]] && XRDCF="${ARG2}"
@@ -242,13 +264,15 @@ if [[ -z "${ARG2}" ]]; then
   XRDCF="${DIR_NAME}/${FILE_NAME}"
 fi
 
-cp -f "${XRDCF_TMP}" "${XRDCF}"
 export XRDCF_TMP XRDCF
 }
 
 ######################################
 ##  Get all relevant server information from MonaLisa
 serverinfo () {
+# if we are called by mistake (when XRD_DONOTRECONF is enabled) then just return
+[[ -n "${XRD_DONOTRECONF}" ]] && return 0;
+
 # if XRDCONF is not set (by getLocations) we must run it passing the serverinfo args to getLocations
 # this is needed for customization of template and final xrootd configuration file
 getLocations "$@"
@@ -348,6 +372,9 @@ export MANAGER_ALIAS
 
 ######################################
 set_system () {
+# if we are called by mistake (when XRD_DONOTRECONF is enabled) then just return
+[[ -n "${XRD_DONOTRECONF}" ]] && return 0;
+
 # Get all upstream server info (after first source of system.cnf);
 # it will get also the locations of configurations and scripts
 
@@ -360,7 +387,10 @@ serverinfo "$@"
 #######################
 echo "XRDSH dir is : ${XRDSHDIR}"
 echo "XRDCONFDIR is : ${XRDCONFDIR}"
+echo "XRDCF_TMP file is : ${XRDCF_TMP}"
 echo "XRDCF file is : ${XRDCF}"
+
+cp -f "${XRDCF_TMP}" "${XRDCF}"
 
 ## if set in system.cnf set the debug value in configuration file
 if [[ -n "${XRDDEBUG}" ]]; then
@@ -496,8 +526,9 @@ addcron() {
 
 ######################################
 getSrvToMon() {
+  local se pid
   srvToMon=""
-  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_"
+  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
 
   for typ in manager server ; do
     for srv in xrootd cmsd ; do
@@ -509,7 +540,8 @@ getSrvToMon() {
 
 ######################################
 servMon() {
-  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_"
+  local se
+  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
 
   startUp /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" "$@"
   echo
@@ -517,7 +549,7 @@ servMon() {
 
 ######################################
 startMon() {
-    [[ -z "${MONALISA_HOST}" ]] && return
+    [[ -z "${MONALISA_FQDN}" ]] && return 1;
 
     getSrvToMon
     echo -n "Starting ApMon [${srvToMon}] ..."
@@ -599,88 +631,82 @@ execEnvironment() {
 ######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
+    local XRDSHUSER
+    XRDSHUSER=$(id -nu)
 
-    /usr/bin/pkill -u "${USER}" xrootd
-    /usr/bin/pkill -u "${USER}" cmsd
-    /bin/sleep 1
-    /usr/bin/pkill -9 -u "${USER}" xrootd
-    /usr/bin/pkill -9 -u "${USER}" cmsd
+    /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
+    /bin/sleep 2
+    /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"
 
-    echo_passed;
+    local xrd_procs
+    xrd_procs=$(pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+
+    [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
     echo
 
-    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${USER}" mpxstats; }
-
+    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats; }
 }
 
 ######################################
-restartXRD() {
-    echo restartXRD
-    killXRD
+startXRD () {
+    if [[ -n "${XRD_DONOTRECONF}" ]]; then
+      getLocations "$@"
+      eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
+      INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+    else
+      set_system "$@"
+    fi
 
-    set_system
     execEnvironment "${INSTANCE_NAME}" || exit
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
     echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
-    startUp startCMSDserv "${XRDCONFDIR}/xrootd.cf"
+    startUp startCMSDserv "${XRDCF}"
 
     echo -n "Starting xrootd [${INSTANCE_NAME}]: "
-    startUp startXRDserv "${XRDCONFDIR}/xrootd.cf"
+    startUp startXRDserv "${XRDCF}"
 
-    sleep 1
-    [[ -z "${XRDSH_NOAPMON}" ]] && { startMon; sleep 1; }
-
+    [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
 }
 
 ######################################
-checkstate() {
+restartXRD () {
+    killXRD
+    startXRD "$@"
+}
+
+######################################
+checkstate () {
 echo "******************************************"
 date
 echo "******************************************"
 
-nxrd=$(/usr/bin/pgrep -u "${USER}" xrootd | wc -l);
-ncms=$(/usr/bin/pgrep -u "${USER}" cmsd   | wc -l);
-
+local xrd_pid cmsd_pid returnval is_apmon_pid
 returnval=0
 
-if (( nxrd >= 1 )); then
-  echo -n "xrootd:";
-  echo_success;
-  echo
-else
-  echo -n "xrootd:";
-  echo_failure;
-  echo
-  returnval=1;
-fi
+xrd_pid=$(/usr/bin/pgrep -u "${USER}" xrootd | sed ':a;N;$!ba;s/\n/ /g');
+cmsd_pid=$(/usr/bin/pgrep -u "${USER}" cmsd  | sed ':a;N;$!ba;s/\n/ /g');
 
-if (( ncms >= 1 )) ; then
-  echo -n "cmsd :";
-  echo_success;
-  echo
-else
-  echo -n "cmsd :";
-  echo_failure;
-  echo
-  returnval=1;
-fi
+# if pids not found show error
+[[ -z "${xrd_pid}" ]] && { echo -n "xrootd :"; echo_failure; echo; returnval=1; }
+[[ -z "${cmsd_pid}" ]] && { echo -n "cmsd :"; echo_failure; echo; returnval=1; }
 
+# if pids not found just return with error
+[[ "${returnval}" == "1" ]] && return "${returnval}";
 
+echo -n "xrootd : ${xrd_pid}; "; echo_success; echo
+echo -n "cmsd : ${cmsd_pid}; "; echo_success; echo
+
+# is apmon is enabled
 if [[ -z "${XRDSH_NOAPMON}" ]]; then
-    [[ -n "${MONALISA_HOST}" ]] && lines=$(/bin/find "${apmonPidFile}*" 2>/dev/null | /usr/bin/wc -l)
+    # find pid file of apmon
+    is_apmon_pid=$(/bin/find "${apmonPidFile}*" 2>/dev/null | /usr/bin/wc -l)
 
-    if (( lines > 0 )) ; then
-      echo -n "apmon:";
-      echo_success;
-      echo
+    if (( is_apmon_pid > 0 )) ; then
+      echo -n "apmon:"; echo_success; echo;
     else
-      echo -n "apmon:";
-      echo_failure;
-      echo
-      returnval=1;
+      echo -n "apmon:"; echo_failure; echo; returnval=1;
     fi
-
 fi
 
 return "${returnval}"
@@ -691,46 +717,25 @@ return "${returnval}"
 ######################
 xrdsh_main() {
 if [[ "$1" == "-c" ]]; then  ## check and restart if not running
-    set_system
+    shift
+
+    # if we are reconfiguring then also check the keys
+    [[ -z "${XRD_DONOTRECONF}" ]] && checkkeys
+
     addcron # it will remove old xrd.sh line and
-    checkkeys
 
-    ## check the number of xrootd and cmsd processes
-    nxrd=$(/usr/bin/pgrep -u "${USER}" xrootd | /usr/bin/wc -l)
-    ncms=$(/usr/bin/pgrep -u "${USER}" cmsd   | /usr/bin/wc -l)
+    # check status of xrootd and cmsd pids - if checkstate return error then restart all
+    checkstate || restartXRD "$@"
 
-    ## if their number is lower than it should (number given by the roles)
-    if (( (nxrd < 1) || (ncms < 1) )) ; then
-      /bin/date
-      echo "------------------------------------------"
-      /bin/ps
-      echo "------------------------------------------"
-      echo "Starting all .... (only ${nxrd} xrootds ${ncms} cmsds)"
-      restartXRD
-      echo "------------------------------------------"
-    fi
-
-    if [[ -z "${XRDSH_NOAPMON}" ]] ; then
-      [[ -n "$MONALISA_HOST" ]] && servMon
-    fi
-
-    checkstate
-elif [[ "$1" == "-check" ]]; then
-## CLI starting of services
-    set_system
+elif [[ "$1" == "-status" ]]; then
     checkstate
 elif [[ "$1" == "-f" ]]; then   ## force restart
+    shift
     addcron # it will remove old xrd.sh line and
-    set_system
-    checkkeys
+    [[ -z "${XRD_DONOTRECONF}" ]] && checkkeys
     /bin/date
     echo "(Re-)Starting ...."
-    restartXRD
-
-    if [[ -z "${XRDSH_NOAPMON}" ]] ; then
-      [[ -n "$MONALISA_HOST" ]] && servMon
-    fi
-
+    restartXRD "$@"
     checkstate
 elif [[ "$1" == "-k" ]]; then  ## kill running processes
     removecron
@@ -753,6 +758,7 @@ else
     echo " [-f] force restart";
     echo " [-c] check and restart if not running";
     echo " [-k] kill running processes";
+    echo " [-status] show if xrootd|cmsd pids are present";
     echo " [-logs] manage the logs";
     echo " [-conf] just (re)create configuration; optional args : <configuration_template> <xrootd_configuration>";
     echo " [-getkeys] just get keys";
