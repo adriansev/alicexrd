@@ -126,25 +126,7 @@ echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
 }
 
 ######################################
-startXRDserv () {
-local CFG="$1"
-
-## get __XRD_ server arguments from config file.
-eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
-
-## make sure that they are defined
-# shellcheck disable=2153
-[[ -z "${__XRD_INSTANCE_NAME}" || -z "${__XRD_LOG}" || -z "${__XRD_PIDFILE}" ]] && { startXRDserv_help; exit 1;}
-
-## not matter how is enabled the debug mode means -d
-[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
-
-local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
-eval "${XRD_START}"
-}
-
-######################################
-startCMSDserv () {
+startXROOTDprocs () {
 local CFG="$1"
 
 ## get __CMSD_ server arguments from config file.
@@ -152,13 +134,21 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 ## make sure that they are defined
 # shellcheck disable=2153
-[[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1;}
+[[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1; }
+[[ -z "${__XRD_INSTANCE_NAME}"  || -z "${__XRD_LOG}"  || -z "${__XRD_PIDFILE}" ]]  && { startXRDserv_help; exit 1; }
+
 
 ## not matter how is enabled the debug mode means -d
 [[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
+[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
 
+## create the command lines
 local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
+local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
+
+## start services
 eval "${CMSD_START}"
+eval "${XRD_START}"
 }
 
 ######################################
@@ -661,15 +651,14 @@ startXRD () {
     execEnvironment "${INSTANCE_NAME}" || exit
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
-    echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
-    startCMSDserv "${XRDCF}"
-    local CMSD_PID=$( < $(getPidFiles_cmsd) )
-    [[ -n "${CMSD_PID}" ]] && { echo -ne "${CMSD_PID} -> "; echo_success; echo; } || { echo_failure; echo; }
+    echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
+    startXROOTDprocs "${XRDCF}"
 
-    echo -n "Starting xrootd [${INSTANCE_NAME}]: "
-    startXRDserv "${XRDCF}"
+    local CMSD_PID=$( < $(getPidFiles_cmsd) )
+    [[ -n "${CMSD_PID}" ]] && { echo -ne "CMSD pid :\t${CMSD_PID} -> "; echo_success; echo; } || { echo "CMSD pid not found"; echo_failure; echo; }
+
     local XRD_PID=$( < $(getPidFiles_xrd) )
-    [[ -n "${XRD_PID}" ]] && { echo -ne "${XRD_PID} -> "; echo_success; echo; } || { echo_failure; echo; }
+    [[ -n "${XRD_PID}" ]] && { echo -ne "XROOTD pid :\t${XRD_PID} -> "; echo_success; echo; } || { echo "XROOTD pid not found"; echo_failure; echo; }
 
     [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
 }
@@ -693,14 +682,14 @@ xrd_pid=$(/usr/bin/pgrep -u "${USER}" xrootd | sed ':a;N;$!ba;s/\n/ /g');
 cmsd_pid=$(/usr/bin/pgrep -u "${USER}" cmsd  | sed ':a;N;$!ba;s/\n/ /g');
 
 # if pids not found show error
-[[ -z "${xrd_pid}" ]] && { echo -n "xrootd :"; echo_failure; echo; returnval=1; }
-[[ -z "${cmsd_pid}" ]] && { echo -n "cmsd :"; echo_failure; echo; returnval=1; }
+[[ -z "${cmsd_pid}" ]] && { echo -n "CMSD pid not found"; echo_failure; echo; returnval=1; }
+[[ -z "${xrd_pid}" ]] && { echo -n "XROOTD pid not found"; echo_failure; echo; returnval=1; }
 
 # if pids not found just return with error
 [[ "${returnval}" == "1" ]] && return "${returnval}";
 
-echo -n "xrootd : ${xrd_pid}; "; echo_success; echo
-echo -n "cmsd : ${cmsd_pid}; "; echo_success; echo
+echo -ne "CMSD pid :\t${cmsd_pid}"; echo_success; echo
+echo -ne "XROOTD pid :\t${xrd_pid}"; echo_success; echo
 
 # is apmon is enabled
 if [[ -z "${XRDSH_NOAPMON}" ]]; then
