@@ -130,7 +130,7 @@ startXRDserv () {
 local CFG="$1"
 
 ## get __XRD_ server arguments from config file.
-eval "$(sed -ne 's/\#@@//gp;' ${CFG})"
+eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 ## make sure that they are defined
 # shellcheck disable=2153
@@ -148,7 +148,7 @@ startCMSDserv () {
 local CFG="$1"
 
 ## get __CMSD_ server arguments from config file.
-eval "$(sed -ne 's/\#@@//gp;' ${CFG})"
+eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 ## make sure that they are defined
 # shellcheck disable=2153
@@ -277,14 +277,26 @@ serverinfo () {
 # this is needed for customization of template and final xrootd configuration file
 getLocations "$@"
 
+# links to alimonitor to query about info
+local ALIMON_SE_URL ALIMON_IP_URL
+ALIMON_SE_URL='"http://alimonitor.cern.ch/services/se.jsp?se='"${SE_NAME}"'&ml_ip=true&resolve=true"' #'
+ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
+
 ## if SE_NAME not found in system.cnf
 [[ -z "${SE_NAME}" ]] && { echo "SE name is not defined in system.cnf!" && exit 1; }
-echo "Found SE_NAME=${SE_NAME}"
 
 ## Get SE info from MonaLisa and check if the SE name is valid; try 3 times before fail and exit
-local ALIMON_SE_URL ALIMON_IP_URL
-ALIMON_SE_URL="http://alimonitor.cern.ch/services/se.jsp?se=${SE_NAME}&ml_ip=true&resolve=true"
-ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
+local SE_INFO
+
+SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";)
+[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
+[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
+[[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
+
+[[ -n "${XRDSH_DEBUG}" ]] && echo "Found SE_NAME=${SE_NAME}"
+
+## Find information about site from ML
+MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | head -n1) #'
 
 ## Validate the ip - make sure is a public one and the reverse match the defined hostname
 # get my ip
@@ -314,17 +326,7 @@ MYHNAME=$(/bin/hostname -f)
 
 ## make sure the locally configured hostname is the same with the external one
 [[ "${MYHNAME}" != "${REVERSE}" ]] && { echo "detected hostname ${MYHNAME} does not corespond to reverse dns name ${REVERSE}"; exit 1; }
-echo "The fully qualified hostname appears to be ${MYHNAME}"
-
-## get SE information from MonaLisa and validate SE_NAME
-local SE_INFO
-SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";)
-[[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
-[[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
-[[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
-
-## Find information about site from ML
-MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | head -n1) #'
+[[ -n "${XRDSH_DEBUG}" ]] && echo "The FQDN appears to be : ${MYHNAME}"
 
 ## XROOTD Manager info
 MANAGER_HOST_PORT=$( /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${SE_INFO}" ) #'
@@ -362,12 +364,8 @@ MANAGER_ALIAS=$(echo "${MANAGER_IP_LIST}" | /usr/bin/wc -l)
 ## instance name can be something else; to be used when starting multiple servers, but we are not doing this
 [[ "${is_manager}" -eq "1" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
 
-export MONALISA_FQDN
-export MANAGERHOST
-export LOCALPATHPFX
-export ROLE
-export INSTANCE_NAME
-export MANAGER_ALIAS
+export MONALISA_FQDN MANAGERHOST LOCALPATHPFX ROLE INSTANCE_NAME MANAGER_ALIAS
+
 }
 
 ######################################
@@ -385,10 +383,12 @@ serverinfo "$@"
 #######################
 ## Customize XRDCF file
 #######################
-echo "XRDSH dir is : ${XRDSHDIR}"
-echo "XRDCONFDIR is : ${XRDCONFDIR}"
-echo "XRDCF_TMP file is : ${XRDCF_TMP}"
-echo "XRDCF file is : ${XRDCF}"
+if [[ -n "${XRDSH_DEBUG}" ]]; then
+  echo "XRDSH dir is : ${XRDSHDIR}"
+  echo "XRDCONFDIR is : ${XRDCONFDIR}"
+  echo "XRDCF_TMP file is : ${XRDCF_TMP}"
+  echo "XRDCF file is : ${XRDCF}"
+fi
 
 cp -f "${XRDCF_TMP}" "${XRDCF}"
 
@@ -437,8 +437,9 @@ s#XRDSERVERPORT#${XRDSERVERPORT}#g;
 s#XRDMANAGERPORT#${XRDMANAGERPORT}#g;
 s#CMSDSERVERPORT#${CMSDSERVERPORT}#g;
 s#CMSDMANAGERPORT#${CMSDMANAGERPORT}#g;
-s#MONALISA_HOST#${MONALISA_FQDN}#g;
 s#ACCLIB#${ACCLIB}#g;
+s#MONALISA_HOST#${MONALISA_FQDN}#g;
+s#XRDRUNDIR#${XRDRUNDIR}#g;
 " "${XRDCF}";
 
 # write storage partitions; convert the /n to actual CRs and then pass that variable to perl; (otherwise it needs to be exported)
@@ -661,10 +662,14 @@ startXRD () {
 
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
     echo -n "Starting cmsd   [${INSTANCE_NAME}]: "
-    startUp startCMSDserv "${XRDCF}"
+    startCMSDserv "${XRDCF}"
+    local CMSD_PID=$( < $(getPidFiles_cmsd) )
+    [[ -n "${CMSD_PID}" ]] && { echo -ne "${CMSD_PID} -> "; echo_success; echo; } || { echo_failure; echo; }
 
     echo -n "Starting xrootd [${INSTANCE_NAME}]: "
-    startUp startXRDserv "${XRDCF}"
+    startXRDserv "${XRDCF}"
+    local XRD_PID=$( < $(getPidFiles_xrd) )
+    [[ -n "${XRD_PID}" ]] && { echo -ne "${XRD_PID} -> "; echo_success; echo; } || { echo_failure; echo; }
 
     [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
 }
@@ -772,6 +777,7 @@ else
     echo "  XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDSHDIR/run/"
     echo "  XRDCONFDIR : location of system.cnf and XRDCF (default xrootd.xrootd.cf) conf files; if not set it will be XRDSHDIR/xrootd.conf/"
     echo "  XRDCONF : main configuration file - usually (default) named system.cnf; if not set it will have the value of XRDCONFDIR/system.cnf"
+    echo "  XRDSH_DEBUG : if set (any value) it will enable various printouts of srd.sh"
 fi
 }
 
