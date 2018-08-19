@@ -54,23 +54,6 @@ echo_passed() {
 }
 
 ######################################
-startUp() {
-    if [[ "${SCRIPTUSER}" == "root" ]]; then
-      cd "${XRDSHDIR}" || { echo "Could not cd to ${XRDSHDIR}"; exit 1; }
-      /bin/su -s /bin/bash "${XRDUSER}" -c "${EXECENV} $*";
-      echo_passed
-      # test $? -eq 0 && echo_success || echo_failure
-      echo
-    else
-      ulimit -c unlimited
-      "$@"
-      echo_passed
-      # test $? -eq 0 && echo_success || echo_failure
-      echo
-    fi
-}
-
-######################################
 getPidFiles_xrd () {
 ps -o args= "$(/usr/bin/pgrep -x xrootd)" | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
@@ -167,9 +150,6 @@ done
 XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
 export XRDSHDIR
 
-# make sure xrd.sh is executable by user and user group
-/bin/chmod ug+x "${XRDSHDIR}/xrd.sh"
-
 # location of logs, admin, core dirs
 XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}
 export XRDRUNDIR
@@ -192,11 +172,17 @@ fi
 
 ## Locations and user settings
 USER=${USER:-$LOGNAME}
-[[ -z "$USER" ]] && USER=$(/usr/bin/id -nu)
-SCRIPTUSER=$USER
+[[ -z "${USER}" ]] && USER=$(/usr/bin/id -nu)
+SCRIPTUSER="${USER}"
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(/usr/bin/stat -c %U "${XRDSHDIR}")
+XRDUSER=$(/usr/bin/stat -c %U "${XRDSHDIR}/xrd.sh")
+
+## protect the case when some other user start xrd.sh; make sure the xrd.sh is owned by the user that will run xrootd
+[[ "${SCRIPTUSER}" != "${XRDUSER}" ]] && { echo "User running the xrd.sh and the owner of xrd.sh are different! To protect against problems use the same user as xrd.sh"; exit 1; }
+
+# make sure xrd.sh is executable by user and user group
+/bin/chmod ug+x "${XRDSHDIR}/xrd.sh"
 
 ## get the home dir of the designated xrd user
 XRDHOME=$(getent passwd "${XRDUSER}" | awk -F: '{print $(NF-1)}') #'
@@ -255,6 +241,9 @@ if [[ -z "${ARG2}" ]]; then
 fi
 
 export XRDCF_TMP XRDCF
+
+# core file size (blocks, -c); legacy directive
+#ulimit -c unlimited
 }
 
 ######################################
@@ -534,7 +523,7 @@ servMon() {
   local se
   [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
 
-  startUp /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" "$@"
+  /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" "$@"
   echo
 }
 
