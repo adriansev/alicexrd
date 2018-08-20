@@ -55,12 +55,22 @@ echo_passed() {
 
 ######################################
 getPidFiles_xrd () {
-ps -o args= "$(/usr/bin/pgrep -x xrootd)" | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
 getPidFiles_cmsd () {
-ps -o args= "$(/usr/bin/pgrep -x cmsd)" | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+}
+
+######################################
+getInstance_xrd () {
+ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}' #'
+}
+
+######################################
+getInstance_cmsd () {
+ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}' #'
 }
 
 ######################################
@@ -129,6 +139,13 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
 local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
 
+## make sure that no services with the same instance name are started
+local cmsd_instances=$(getInstance_cmsd)
+local xrd_instances=$(getInstance_xrd)
+
+[[ ${cmsd_instances} =~ ${__CMSD_INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<"; exit 1; }
+[[ ${xrd_instances} =~ ${__XRD_INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<"; exit 1; }
+
 ## start services
 eval "${CMSD_START}"
 eval "${XRD_START}"
@@ -177,6 +194,7 @@ SCRIPTUSER="${USER}"
 
 ## automatically asume that the owner of location of xrd.sh is XRDUSER
 XRDUSER=$(/usr/bin/stat -c %U "${XRDSHDIR}/xrd.sh")
+export XRDUSER
 
 ## protect the case when some other user start xrd.sh; make sure the xrd.sh is owned by the user that will run xrootd
 [[ "${SCRIPTUSER}" != "${XRDUSER}" ]] && { echo "User running the xrd.sh and the owner of xrd.sh are different! To protect against problems use the same user as xrd.sh"; exit 1; }
@@ -187,6 +205,7 @@ XRDUSER=$(/usr/bin/stat -c %U "${XRDSHDIR}/xrd.sh")
 ## get the home dir of the designated xrd user
 XRDHOME=$(getent passwd "${XRDUSER}" | awk -F: '{print $(NF-1)}') #'
 [[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
+export XRDHOME
 
 ## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
 if [[ ! -e "${LOCALROOT}/${LOCALPATHPFX}" ]]; then
@@ -609,6 +628,97 @@ execEnvironment() {
 }
 
 ######################################
+generate_systemd () {
+  if [[ -n "${XRD_DONOTRECONF}" ]]; then
+    getLocations "$@"
+  else
+    set_system "$@"
+  fi
+
+# get information from the configuration file ${XRDCF}
+eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
+[[ -z "${INSTANCE_NAME}"  ]] && local INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+
+# first we prepare the configuration file (it should be prezent)
+cp -f ${XRDCF} xrootd-${INSTANCE_NAME}.cfg
+
+# remove all.pidpath; there will be files in /tmp/<instance name>/ but we will ignore them
+sed -i '/all.pidpath/d' xrootd-${INSTANCE_NAME}.cfg
+
+# adjust all.adminpath to /var/adm/xrootd-<instance name>
+sed -i "/adminpath/s/.*/\/var\/adm\/xrootd-${INSTANCE_NAME}/" xrootd-${INSTANCE_NAME}.cfg
+
+echo -e "The configuration file should be copied to /etc/xrootd/ directory :
+sudo cp -f xrootd-${INSTANCE_NAME}.cfg /etc/xrootd/
+
+and then enable the system provided xrootd systemd service :
+sudo systemctl enable cmsd@${INSTANCE_NAME}.service xrootd@${INSTANCE_NAME}.service
+
+N.B.!!! the format used specify the _instance_name_ : xrootd@<INSTANCE_NAME>.service
+and assumes the configuration name format (and path) : /etc/xrootd/xrootd-<INSTANCE_NAME>.cfg
+"
+# now we have to customize the system provided systemd files
+local cmsd_systemd_dir="/etc/systemd/system/cmsd@${INSTANCE_NAME}.service.d/"
+local cmsd_custom_file="override_cmsd.conf"
+
+local xrootd_systemd_dir="/etc/systemd/system/xrootd@${INSTANCE_NAME}.service.d/"
+local xrootd_custom_file="override_xrootd.conf"
+
+# log file is automatically "fenced" (taged with instance name) so lets leave it like this
+
+# cmsd systemd conf file
+cat > "${cmsd_custom_file}" <<EOF
+[Unit]
+AssertPathExists=/etc/xrootd/xrootd-%i.cfg
+PartOf=xrootd@%i.service
+Before=xrootd@%i.service
+
+[Service]
+User=${XRDUSER}
+Group=${XRDUSER}
+ExecStartPre=/usr/bin/mkdir -p /var/adm/xrootd-%i
+ExecStartPre=/usr/bin/chown -R ${XRDUSER}:${XRDUSER} /var/adm/xrootd-%i
+ExecStartPre=/usr/bin/chmod 1777 /var/log/xrootd /var/run/xrootd
+WorkingDirectory=/var/adm/xrootd-%i
+
+ExecStart=
+ExecStart=/usr/bin/cmsd ${__CMSD_DEBUG} -k fifo -l /var/log/xrootd/cmsd.log -s /var/run/xrootd/cmsd-%i.pid -c /etc/xrootd/xrootd-%i.cfg -n %i
+
+EOF
+
+# xrootd systemd conf file
+cat > "${xrootd_custom_file}" <<EOF
+[Unit]
+AssertPathExists=/etc/xrootd/xrootd-%i.cfg
+After=cmsd@%i.service
+BindsTo=cmsd@%i.service
+
+[Service]
+User=${XRDUSER}
+Group=${XRDUSER}
+ExecStartPre=/usr/bin/mkdir -p /var/adm/xrootd-%i
+ExecStartPre=/usr/bin/chown -R ${XRDUSER}:${XRDUSER} /var/adm/xrootd-%i
+ExecStartPre=/usr/bin/chmod 1777 /var/log/xrootd /var/run/xrootd
+WorkingDirectory=/var/adm/xrootd-%i
+
+ExecStart=
+ExecStart=/usr/bin/xrootd ${__XRD_DEBUG} -k fifo -l /var/log/xrootd/xrootd.log -s /var/run/xrootd/xrootd-%i.pid -c /etc/xrootd/xrootd-%i.cfg -n %i
+
+EOF
+
+echo "
+Check the contents of the two systemd service override files (${cmsd_custom_file} and ${xrootd_custom_file})
+and then copy these files to the locations for systemd service customisation :
+sudo -- bash -c 'mkdir -p ${cmsd_systemd_dir} ; cp -f ${cmsd_custom_file} ${cmsd_systemd_dir}'
+sudo -- bash -c 'mkdir -p ${xrootd_systemd_dir} ; cp -f ${xrootd_custom_file} ${xrootd_systemd_dir}'
+
+then start the services:
+systemctl start xrootd@${INSTANCE_NAME}.service
+systemctl status xrootd@${INSTANCE_NAME}.service
+"
+}
+
+######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
     local XRDSHUSER
@@ -729,6 +839,9 @@ elif [[ "$1" == "-logs" ]]; then  ## handlelogs
 elif [[ "$1" == "-conf" ]]; then  ## create configuration
     shift
     set_system "$@"
+elif [[ "$1" == "-systemd" ]]; then  ## create configuration
+    shift
+    generate_systemd "$@"
 elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
 elif [[ "$1" == "-addcron" ]]; then  ## add cron line
@@ -747,6 +860,7 @@ else
     echo " [-getkeys] just get keys";
     echo " [-addcron] add/refresh cron line";
     echo " [-limits] generate limits file";
+    echo " [-systemd] generate systemd services files";
     echo "";
     echo "Environment variables:";
     echo "  XRDSH_NOWARN_ASLIB : if set (any value) do not warn xrd.sh is sourced"
