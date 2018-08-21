@@ -249,13 +249,13 @@ fi
 # if configuration file is not specified (ARG2) then remove the tmp extension from template and use that name
 # even if no ARG1 is given the same procedure must be done for the default XRDCF_TMP
 if [[ -z "${ARG2}" ]]; then
-  FILE_NAME=$(/usr/bin/basename "${XRDCF_TMP}")
+  FILE_NAME=$(/bin/basename "${XRDCF_TMP}")
   DIR_NAME=$(/usr/bin/dirname "${XRDCF_TMP}")
 
   EXT="${XRDCF_TMP##*.}"
   [[ "${EXT}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
 
-  FILE_NAME=$(/usr/bin/basename "${XRDCF_TMP}" .tmp)
+  FILE_NAME=$(/bin/basename "${XRDCF_TMP}" .tmp)
   XRDCF="${DIR_NAME}/${FILE_NAME}"
 fi
 
