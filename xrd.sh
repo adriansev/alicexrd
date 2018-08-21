@@ -226,7 +226,7 @@ if [[ -n "${XRD_DONOTRECONF}" ]]; then
   # if there is no explicit XRDCF then juts use the default name without .tmp extension
   if [[ -z "${ARG1}"  ]]; then
     DIR_NAME=$(/usr/bin/dirname "${XRDCF_TMP}")
-    FILE_NAME=$(/usr/bin/basename "${XRDCF_TMP}" .tmp)
+    FILE_NAME=$(/bin/basename "${XRDCF_TMP}" .tmp)
     XRDCF="${DIR_NAME}/${FILE_NAME}"
   else
     # an argument was passed to getLocations function; we assume that is the name of xrootd configuration file
