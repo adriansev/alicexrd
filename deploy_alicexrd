@@ -26,7 +26,6 @@ mkdir -p ${XRDSHDIR} ${XRDRUNDIR} ${XRDCONFDIR} ${XRDCONFDIR}/manager ${XRDCONFD
 
 # Script for starting services
 ${CURL} ${XRDSHDIR}/xrd.sh               ${LOCATION}/${BRANCH}/xrd.sh && chmod +x ${XRDSHDIR}/xrd.sh
-${CURL} ${XRDSHDIR}/alicexrdservices.tmp ${LOCATION}/${BRANCH}/alicexrdservices.tmp
 
 # Main configurations
 ${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  ${LOCATION}/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
