@@ -774,7 +774,7 @@ echo "******************************************"
 date
 echo "******************************************"
 
-local xrd_pid cmsd_pid returnval is_apmon_pid
+local xrd_pid cmsd_pid returnval is_apmon_pid returnval
 returnval=0
 
 xrd_pid=$(/usr/bin/pgrep -u "${USER}" xrootd | sed ':a;N;$!ba;s/\n/ /g');
@@ -817,8 +817,9 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
 
     addcron # it will remove old xrd.sh line and
 
+    local state=$( checkstate )
     # check status of xrootd and cmsd pids - if checkstate return error then restart all
-    checkstate || restartXRD "$@"
+    [[ "${state}" == "1" ]] && restartXRD "$@"
 
 elif [[ "$1" == "-status" ]]; then
     checkstate
