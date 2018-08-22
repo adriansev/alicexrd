@@ -752,11 +752,14 @@ startXRD () {
     ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
     echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
     startXROOTDprocs "${XRDCF}"
+    sleep 1
 
-    local CMSD_PID=$( < $(getPidFiles_cmsd) )
+    local CMSD_PID_FILE=$(getPidFiles_cmsd)
+    local CMSD_PID=$( < "${CMSD_PID_FILE}" ) #"
     [[ -n "${CMSD_PID}" ]] && { echo -ne "CMSD pid :\t${CMSD_PID} -> "; echo_success; echo; } || { echo "CMSD pid not found"; echo_failure; echo; }
 
-    local XRD_PID=$( < $(getPidFiles_xrd) )
+    local XRD_PID_FILE=$(getPidFiles_xrd)
+    local XRD_PID=$( < "${XRD_PID_FILE}" ) #"
     [[ -n "${XRD_PID}" ]] && { echo -ne "XROOTD pid :\t${XRD_PID} -> "; echo_success; echo; } || { echo "XROOTD pid not found"; echo_failure; echo; }
 
     [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
