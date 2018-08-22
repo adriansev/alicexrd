@@ -721,20 +721,20 @@ systemctl status xrootd@${INSTANCE_NAME}.service
 ######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
-    local XRDSHUSER
+    local XRDSHUSER xrd_procs
     XRDSHUSER=$(id -nu)
 
-    /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
-    /bin/sleep 2
-    /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"
+    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+    [[ -n "${xrd_procs}" ]] && /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
 
-    local xrd_procs
-    xrd_procs=$(pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+    [[ -n "${xrd_procs}" ]] && { /bin/sleep 2; /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"; }
 
+    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
     [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
     echo
 
-    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats; }
+    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats; echo; }
 }
 
 ######################################
@@ -820,9 +820,10 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
 
     addcron # it will remove old xrd.sh line and
 
-    local state=$( checkstate )
     # check status of xrootd and cmsd pids - if checkstate return error then restart all
-    [[ "${state}" == "1" ]] && restartXRD "$@"
+    checkstate
+    local state=$?
+    [[ ${state} != "0" ]] && restartXRD "$@"
 
 elif [[ "$1" == "-status" ]]; then
     checkstate
