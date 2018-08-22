@@ -22,10 +22,11 @@ XRDCONFDIR=${XRDCONFDIR:=~/alicexrdconf}
 XRDRUNDIR=${XRDRUNDIR:=~/alicexrdrun}
 
 # create directory for logs and other files
-mkdir -p ${XRDSHDIR} ${XRDRUNDIR} ${XRDCONFDIR} ${XRDCONFDIR}/manager ${XRDCONFDIR}/server
+mkdir -p ${XRDSHDIR} ${XRDRUNDIR} ${XRDCONFDIR}
 
 # Script for starting services
-${CURL} ${XRDSHDIR}/xrd.sh               ${LOCATION}/${BRANCH}/xrd.sh && chmod +x ${XRDSHDIR}/xrd.sh
+${CURL} ${XRDSHDIR}/xrd.sh                 ${LOCATION}/${BRANCH}/xrd.sh
+chmod +x ${XRDSHDIR}/xrd.sh
 
 # Main configurations
 ${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  ${LOCATION}/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
