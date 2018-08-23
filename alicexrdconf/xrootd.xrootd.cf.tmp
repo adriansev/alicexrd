@@ -1,5 +1,7 @@
 ##########################################################
 ## COMMON DEFINITIONS
+# Configuration file syntax
+# http://xrootd.org/doc/dev49/Syntax_config.htm
 
 set myName = SITENAME
 set myRedirector = MANAGERHOST
@@ -66,14 +68,14 @@ cms.space min 48g 16g
 #########################
 if $myRedirector
 
-    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504656
     all.role manager
 
-    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222290
+    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911316
     xrd.port XRDMANAGERPORT
 
     # Specify the parameters for the load balancing scheduling algorithm.
-    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223036
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504668
     cms.sched cpu 10 io 10 space 80
 
 else
@@ -81,62 +83,63 @@ else
 ##   SERVER SECTION   ##
 ########################
 
-    # http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223024
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504656
     all.role server
 
-    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222290
+    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911316
     xrd.port XRDSERVERPORT
 
     # DEFAULTS
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930728
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290408
     oss.defaults nomig nodread nocheck norcreate nolock
 
     # Specify how asynchronous I/O is to be handled.
-    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222306
+    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911332
     xrootd.async off
 
     # Specify how file check sums are computed.
-    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222307
+    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
     xrootd.chksum max 2 md5
 
     # Specify when threads are created, how many can be created, and when they should be destroyed.
-    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222298
+    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
     xrd.sched mint 32 maxt 2048 avlt 512 idle 780
 
     # Enable tracing at the oss level.
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930724
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290403
     # Tracing may severely impact performance because all trace messages require
     # serialization to make sure trace messages are printed in the correct order.
     ofs.trace open
 
     # Auth Section  #
     # Specify the location of the security interface layer. - IS IT NEEDED?
-    # http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222304
+    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911330
     xrootd.seclib /usr/lib64/libXrdSec.so
 
     # Define the characteristics of an authentication protocol.
-    # http://xrootd.org/doc/dev45/sec_config.htm#_Toc464225462
+    # http://xrootd.org/doc/dev49/sec_config.htm#_Toc517294097
+    # http://xrootd.org/doc/dev49/sec_config.htm#_Toc517294122
     sec.protocol /usr/lib64 unix
 
     # Enable the access control, acc, component.
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930710
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290388
     ofs.authorize
 
     # Specify the location of the file system authorization interface layer.
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930712
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290390
     ofs.authlib /usr/lib64/ACCLIB
 
     # Specify the way a disk partition is selected for file placement.
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930727
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290407
     oss.alloc 0 0 0
 
     # The funny ALICE name translation, for the global metamanager to aggregate all the clusters
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930739
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290419
     oss.namelib /usr/lib64/libXrdAggregatingName2Name.so LOCALPATHPFX
 
     # The metamanager acts as a virtual stager. Beware, internally xrootd strips the trailing slashes so, no point in adding them here
     # Specify where the local file system name space is actually rooted.
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930730
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290410
     oss.localroot LOCALROOT
 
     # Specify the location of a file system that is to be used to hold data files.
