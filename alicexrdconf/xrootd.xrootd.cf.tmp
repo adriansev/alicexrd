@@ -11,51 +11,54 @@ set portCMSD   = CMSDMANAGERPORT
 ##########################################################
 ##   COMMON SETTINGS   ##
 
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222303
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911329
+# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290409 - OSS options - see defaults for details
+# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290408 - OSS options - defaults
 all.export / writable
 
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222299
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911325
 all.sitename $myName
 
 # Specify the manager cmsd location.
-# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223020
+# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504652
 all.manager $myRedirector $portCMSD
 
 # Specify the location of the administrative communications path.
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222287
+# for systemd service file it has to be changed to a global, not user linked location
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911313
 all.adminpath XRDRUNDIR/admin/
 
 # Specify the location of the xrootd.pid file
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222317
+# for systemd service file it has to be removed and the resulting /tmp/<instance name>/ files to be ignored
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911344
 all.pidpath XRDRUNDIR/admin/
 
 # Specify execution tracing options.
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222301
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222320
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911327
 #all.trace debug all
 
 # Enable I/O monitoring.
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222316
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911343
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
 
 # Configure a protocol that xrd is to use for incoming requests.
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222296
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911322
 xrd.protocol xrootd *
 
 # Enable window scaling on the monostream connection.
-# http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222293
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911319
 xrd.network buffsz 0 nodnr
 
 # Enable and set third-party-copy (TPC) parameters.
-# http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930723
+# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290401
 ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
 
 # Manage processing latency.
-# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223045
+# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504677
 cms.delay servers 1 startup 10
 
 # Specify how servers are selected for file creation
-# http://xrootd.org/doc/dev45/cms_config.htm#_Toc454223038
+# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
 cms.space min 48g 16g
 
 #########################
@@ -137,7 +140,7 @@ else
     oss.localroot LOCALROOT
 
     # Specify the location of a file system that is to be used to hold data files.
-    # http://xrootd.org/doc/dev41/ofs_config.htm#_Toc401930733
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504671
     OSSCACHE
 
 fi
