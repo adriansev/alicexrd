@@ -67,14 +67,14 @@ ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if (
 getPidFiles_xrd_instance () {
 [[ -z "${1}" ]] && { echo "getPidFiles_xrd_instance : instance name should be specified"; exit 1; }
 local INSTANCE="${1}"
-ps -o args= $(/usr/bin/pgrep -f xrootd.*"${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep -f "xrootd.*${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
 getPidFiles_cmsd_instance () {
 [[ -z "${1}" ]] && { echo "getPidFiles_cmsd_instance : instance name should be specified"; exit 1; }
 local INSTANCE="${1}"
-ps -o args= $(/usr/bin/pgrep -f cmsd.*"${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep -f "cmsd.*${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
@@ -344,10 +344,9 @@ MYIP=$(/bin/awk '/IP/ {gsub("IP:","",$1); print $1;}'  <<< "${MYNET}") #'
 REVERSE=$(/bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1;}'  <<< "${MYNET}" ) #'
 
 ## make sure the exit public ip is locally configured
-local ip_list found_at
+local ip_list
 ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1];}') #'
-found_at=$(expr index "${ip_list}" "${MYIP}")
-[[ "${found_at}" == "0" ]] && { echo "Server without public/rutable ip. No NAT schema supported at this moment"; exit 1; }
+[[ "${ip_list}" =~ ${MYIP} ]] || { echo "Server without public/rutable ip. No NAT schema supported at this moment"; exit 1; }
 
 ## what is my local set hostname
 local MYHNAME
