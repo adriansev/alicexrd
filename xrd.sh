@@ -130,25 +130,41 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 [[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1; }
 [[ -z "${__XRD_INSTANCE_NAME}"  || -z "${__XRD_LOG}"  || -z "${__XRD_PIDFILE}" ]]  && { startXRDserv_help; exit 1; }
 
-
 ## not matter how is enabled the debug mode means -d
 [[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
 [[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
 
 ## create the command lines
-local CMSD_START="/usr/bin/cmsd -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
-local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG} -n ${__XRD_INSTANCE_NAME} -l ${__XRD_LOG} -s ${__XRD_PIDFILE} -c ${CFG}"
+local CMSD_START="/usr/bin/cmsd  -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
+local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG}  -n ${__XRD_INSTANCE_NAME}  -l ${__XRD_LOG}  -s ${__XRD_PIDFILE}  -c ${CFG}"
 
 ## make sure that no services with the same instance name are started
-local cmsd_instances=$(getInstance_cmsd)
-local xrd_instances=$(getInstance_xrd)
+local cmsd_instances="$(getInstance_cmsd)"
+if [[ -z "${cmsd_instances}" ]]; then
+  ${CMSD_START}
+else
+  local is_cmsd_present=$(grep "${__CMSD_INSTANCE_NAME}" "${cmsd_instances}")
+  if [[ -n "${is_cmsd_present}" ]]; then
+    echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<";
+  else
+    # if there is no instance name overlap then start it
+    ${CMSD_START}
+  fi
+fi
 
-[[ ${cmsd_instances} =~ ${__CMSD_INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<"; exit 1; }
-[[ ${xrd_instances} =~ ${__XRD_INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<"; exit 1; }
+local xrd_instances="$(getInstance_xrd)"
+if [[ -z "${xrd_instances}" ]]; then
+  ${XRD_START}
+else
+  local is_xrd_present=$(grep "${__XRD_INSTANCE_NAME}" "${xrd_instances}")
+  if [[ -n "${is_xrd_present}" ]]; then
+    echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<";
+  else
+    # if there is no instance name overlap then start it
+    ${XRD_START}
+  fi
+fi
 
-## start services
-eval "${CMSD_START}"
-eval "${XRD_START}"
 }
 
 ######################################
@@ -729,59 +745,6 @@ systemctl status xrootd@${INSTANCE_NAME}.service
 }
 
 ######################################
-killXRD() {
-    echo -n "Stopping xrootd/cmsd: "
-    local XRDSHUSER xrd_procs
-    XRDSHUSER=$(id -nu)
-
-    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-    [[ -n "${xrd_procs}" ]] && /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
-
-    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-    [[ -n "${xrd_procs}" ]] && { /bin/sleep 2; /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"; }
-
-    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-    [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
-    echo
-
-    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats; echo; }
-}
-
-######################################
-startXRD () {
-    if [[ -n "${XRD_DONOTRECONF}" ]]; then
-      getLocations "$@"
-      eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
-      INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
-    else
-      set_system "$@"
-    fi
-
-    execEnvironment "${INSTANCE_NAME}" || exit
-
-    ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
-    echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
-    startXROOTDprocs "${XRDCF}"
-    sleep 1
-
-    local CMSD_PID_FILE=$(getPidFiles_cmsd)
-    local CMSD_PID=$( < "${CMSD_PID_FILE}" ) #"
-    [[ -n "${CMSD_PID}" ]] && { echo -ne "CMSD pid :\t${CMSD_PID} -> "; echo_success; echo; } || { echo "CMSD pid not found"; echo_failure; echo; }
-
-    local XRD_PID_FILE=$(getPidFiles_xrd)
-    local XRD_PID=$( < "${XRD_PID_FILE}" ) #"
-    [[ -n "${XRD_PID}" ]] && { echo -ne "XROOTD pid :\t${XRD_PID} -> "; echo_success; echo; } || { echo "XROOTD pid not found"; echo_failure; echo; }
-
-    [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
-}
-
-######################################
-restartXRD () {
-    killXRD
-    startXRD "$@"
-}
-
-######################################
 checkstate () {
 echo "******************************************"
 date
@@ -816,6 +779,58 @@ if [[ -z "${XRDSH_NOAPMON}" ]]; then
 fi
 
 return "${returnval}"
+}
+
+######################################
+killXRD() {
+    echo -n "Stopping xrootd/cmsd: "
+    local XRDSHUSER xrd_procs
+    XRDSHUSER=$(id -nu)
+
+    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+    [[ -n "${xrd_procs}" ]] && /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
+
+    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+    [[ -n "${xrd_procs}" ]] && { /bin/sleep 2; /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"; }
+
+    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+    [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
+    echo
+
+    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats; echo; }
+}
+
+######################################
+startXRD () {
+    if [[ -n "${XRD_DONOTRECONF}" ]]; then
+      getLocations "$@"
+      eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
+      INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+    else
+      set_system "$@"
+    fi
+
+    execEnvironment "${INSTANCE_NAME}" || exit
+
+    ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
+    echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
+    startXROOTDprocs "${XRDCF}"
+
+    local CMSD_PID_FILE=$(getPidFiles_cmsd)
+    local CMSD_PID=$( < "${CMSD_PID_FILE}" ) #"
+    [[ -n "${CMSD_PID}" ]] && { echo -ne "CMSD pid :\t${CMSD_PID} -> "; echo_success; echo; } || { echo "CMSD pid not found"; echo_failure; echo; }
+
+    local XRD_PID_FILE=$(getPidFiles_xrd)
+    local XRD_PID=$( < "${XRD_PID_FILE}" ) #"
+    [[ -n "${XRD_PID}" ]] && { echo -ne "XROOTD pid :\t${XRD_PID} -> "; echo_success; echo; } || { echo "XROOTD pid not found"; echo_failure; echo; }
+
+    [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
+}
+
+######################################
+restartXRD () {
+    killXRD
+    startXRD "$@"
 }
 
 ######################
