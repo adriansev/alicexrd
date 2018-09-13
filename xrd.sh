@@ -64,6 +64,20 @@ ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if (
 }
 
 ######################################
+getPidFiles_xrd_instance () {
+[[ -z "${1}" ]] && { echo "getPidFiles_xrd_instance : instance name should be specified"; exit 1; }
+local INSTANCE="${1}"
+ps -o args= $(/usr/bin/pgrep -f xrootd.*"${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+}
+
+######################################
+getPidFiles_cmsd_instance () {
+[[ -z "${1}" ]] && { echo "getPidFiles_cmsd_instance : instance name should be specified"; exit 1; }
+local INSTANCE="${1}"
+ps -o args= $(/usr/bin/pgrep -f cmsd.*"${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+}
+
+######################################
 getInstance_xrd () {
 ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}' #'
 }
@@ -85,7 +99,7 @@ cfg_set_value () {
 local CFGFILE="$1"
 local KEY="$2"
 local VALUE="$3"
-sed --follow-symlinks -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" ${CFGFILE}
+sed --follow-symlinks -i "s#^\($KEY\s*=\s*\).*\$#\1\"$VALUE\"#" "${CFGFILE}"
 }
 
 ######################################
@@ -93,7 +107,7 @@ cfg_set_xrdvalue () {
 local CFGFILE="$1"
 local KEY="$2"
 local VALUE="$3"
-sed --follow-symlinks -i "s#^\#@@\($KEY\s*=\s*\).*\$#\#@@\1\"$VALUE\"#" ${CFGFILE}
+sed --follow-symlinks -i "s#^\#@@\($KEY\s*=\s*\).*\$#\#@@\1\"$VALUE\"#" "${CFGFILE}"
 }
 
 ######################################
@@ -139,11 +153,13 @@ local CMSD_START="/usr/bin/cmsd  -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -
 local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG}  -n ${__XRD_INSTANCE_NAME}  -l ${__XRD_LOG}  -s ${__XRD_PIDFILE}  -c ${CFG}"
 
 ## make sure that no services with the same instance name are started
-local cmsd_instances="$(getInstance_cmsd)"
+local cmsd_instances
+cmsd_instances="$(getInstance_cmsd)"
 if [[ -z "${cmsd_instances}" ]]; then
   ${CMSD_START}
 else
-  local is_cmsd_present=$(grep "${__CMSD_INSTANCE_NAME}" "${cmsd_instances}")
+  local is_cmsd_present
+  is_cmsd_present=$(grep "${__CMSD_INSTANCE_NAME}" "${cmsd_instances}")
   if [[ -n "${is_cmsd_present}" ]]; then
     echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<";
   else
@@ -152,11 +168,13 @@ else
   fi
 fi
 
-local xrd_instances="$(getInstance_xrd)"
+local xrd_instances
+xrd_instances="$(getInstance_xrd)"
 if [[ -z "${xrd_instances}" ]]; then
   ${XRD_START}
 else
-  local is_xrd_present=$(grep "${__XRD_INSTANCE_NAME}" "${xrd_instances}")
+  local is_xrd_present
+  is_xrd_present=$(grep "${__XRD_INSTANCE_NAME}" "${xrd_instances}")
   if [[ -n "${is_xrd_present}" ]]; then
     echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<";
   else
@@ -458,10 +476,11 @@ s#XRDRUNDIR#${XRDRUNDIR}#g;
 
 # Configure the threads scheduling for xrootd
 # we allow xrootd to use up to 90% of maximum number of threads allowed to user
-local XRD_MAX_PROCS=$(/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
-
+local XRD_MAX_PROCS
+XRD_MAX_PROCS=$(/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
 # we compute the number of idle threads waiting for connections as the number of logical cores found
-local XRD_IDLE_THREADS=$(grep -c '^processor' /proc/cpuinfo)
+local XRD_IDLE_THREADS
+XRD_IDLE_THREADS=$(grep -c '^processor' /proc/cpuinfo)
 
 # now use these info in the configuration file; we set unsed threads cleaning time to 60s
 sed --follow-symlinks -i "/xrd.sched/s/.*/    xrd.sched mint 32 idle 60 avlt ${XRD_IDLE_THREADS} maxt ${XRD_MAX_PROCS}/" "${XRDCF}";
@@ -666,13 +685,13 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
 [[ -z "${INSTANCE_NAME}"  ]] && local INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
 
 # first we prepare the configuration file (it should be prezent)
-cp -f ${XRDCF} xrootd-${INSTANCE_NAME}.cfg
+cp -f "${XRDCF}" "xrootd-${INSTANCE_NAME}.cfg"
 
 # remove all.pidpath; there will be files in /tmp/<instance name>/ but we will ignore them
-sed -i '/all.pidpath/d' xrootd-${INSTANCE_NAME}.cfg
+sed -i '/all.pidpath/d' "xrootd-${INSTANCE_NAME}.cfg"
 
 # adjust all.adminpath to /var/adm/xrootd-<instance name>
-sed -i "/adminpath/s/.*/\/var\/adm\/xrootd-${INSTANCE_NAME}/" xrootd-${INSTANCE_NAME}.cfg
+sed -i "/adminpath/s/.*/\/var\/adm\/xrootd-${INSTANCE_NAME}/" "xrootd-${INSTANCE_NAME}.cfg" #"
 
 echo -e "The configuration file should be copied to /etc/xrootd/ directory :
 sudo cp -f xrootd-${INSTANCE_NAME}.cfg /etc/xrootd/
@@ -745,43 +764,6 @@ systemctl status xrootd@${INSTANCE_NAME}.service
 }
 
 ######################################
-checkstate () {
-echo "******************************************"
-date
-echo "******************************************"
-
-local xrd_pid cmsd_pid returnval is_apmon_pid returnval
-returnval=0
-
-xrd_pid=$(/usr/bin/pgrep -u "${USER}" xrootd | sed ':a;N;$!ba;s/\n/ /g');
-cmsd_pid=$(/usr/bin/pgrep -u "${USER}" cmsd  | sed ':a;N;$!ba;s/\n/ /g');
-
-# if pids not found show error
-[[ -z "${cmsd_pid}" ]] && { echo -n "CMSD pid not found"; echo_failure; echo; returnval=1; }
-[[ -z "${xrd_pid}" ]] && { echo -n "XROOTD pid not found"; echo_failure; echo; returnval=1; }
-
-# if pids not found just return with error
-[[ "${returnval}" == "1" ]] && return "${returnval}";
-
-echo -ne "CMSD pid :\t${cmsd_pid}"; echo_success; echo
-echo -ne "XROOTD pid :\t${xrd_pid}"; echo_success; echo
-
-# is apmon is enabled
-if [[ -z "${XRDSH_NOAPMON}" ]]; then
-    # find pid file of apmon
-    is_apmon_pid=$(/bin/find "${apmonPidFile}*" 2>/dev/null | /usr/bin/wc -l)
-
-    if (( is_apmon_pid > 0 )) ; then
-      echo -n "apmon:"; echo_success; echo;
-    else
-      echo -n "apmon:"; echo_failure; echo; returnval=1;
-    fi
-fi
-
-return "${returnval}"
-}
-
-######################################
 killXRD() {
     echo -n "Stopping xrootd/cmsd: "
     local XRDSHUSER xrd_procs
@@ -801,30 +783,87 @@ killXRD() {
 }
 
 ######################################
-startXRD () {
-    if [[ -n "${XRD_DONOTRECONF}" ]]; then
-      getLocations "$@"
-      eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
-      INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+checkstate () {
+# make sure that checkstate report on the servers/instance name of the configuration not on all prezent servers
+if [[ -n "${XRD_DONOTRECONF}" ]]; then
+  getLocations "$@"
+  eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
+  INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+else
+  set_system "$@"
+fi
+
+execEnvironment "${INSTANCE_NAME}" || exit
+echo "******************************************"
+date
+echo "******************************************"
+
+local stateval=0
+
+# lets treat each service individually
+# CMSD
+local pidfile_cmsd
+pidfile_cmsd=$(getPidFiles_cmsd_instance "${INSTANCE_NAME}")
+if [[ -z "${pidfile_cmsd}" ]]; then
+  echo -n "CMSD pid file for instance >${INSTANCE_NAME}< not found"; echo_failure; echo; stateval=1;
+else
+  local cmsd_pid cmsd_rss
+  cmsd_pid=$(<"${pidfile_cmsd}")
+  cmsd_rss=$(grep VmRSS /proc/"${cmsd_pid}"/status 2>/dev/null)
+  if [[ -z "${cmsd_rss}" ]]; then
+    echo -ne "CMSD pid file for >${INSTANCE_NAME}< found BUT no valid pid!!!"; echo_failure; echo; stateval=1;
+  else
+    echo -ne "CMSD pid :\t${cmsd_pid}\t${cmsd_rss}"; echo_success; echo
+  fi
+fi
+
+# XROOTD
+local pidfile_xrd
+pidfile_xrd=$(getPidFiles_xrd_instance "${INSTANCE_NAME}")
+if [[ -z "${pidfile_xrd}" ]]; then
+  echo -n "XROOTD pid file for instance >${INSTANCE_NAME}< not found"; echo_failure; echo; stateval=1;
+else
+  local xrd_pid xrd_rss
+  xrd_pid=$(<"${pidfile_xrd}")
+  xrd_rss=$(grep VmRSS /proc/"${xrd_pid}"/status 2>/dev/null)
+  if [[ -z "${xrd_rss}" ]]; then
+    echo -ne "XROOTD pid file for >${INSTANCE_NAME}< found BUT no valid pid!!!"; echo_failure; echo; stateval=1;
+  else
+    echo -ne "XROOTD pid :\t${xrd_pid}\t${xrd_rss}"; echo_success; echo
+  fi
+fi
+
+# is apmon is enabled
+if [[ -z "${XRDSH_NOAPMON}" ]]; then
+    # find pid file of apmon
+    local is_apmon_pid
+    is_apmon_pid=$(/bin/find "${apmonPidFile}*" 2>/dev/null | /usr/bin/wc -l)
+    if (( is_apmon_pid > 0 )) ; then
+      echo -n "apmon:"; echo_success; echo;
     else
-      set_system "$@"
+      echo -n "apmon:"; echo_failure; echo; stateval=1;
     fi
+fi
 
-    execEnvironment "${INSTANCE_NAME}" || exit
+return "${stateval}"
+}
 
-    ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
-    echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
-    startXROOTDprocs "${XRDCF}"
+######################################
+startXRD () {
+  if [[ -n "${XRD_DONOTRECONF}" ]]; then
+    getLocations "$@"
+    eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
+    INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+  else
+    set_system "$@"
+  fi
 
-    local CMSD_PID_FILE=$(getPidFiles_cmsd)
-    local CMSD_PID=$( < "${CMSD_PID_FILE}" ) #"
-    [[ -n "${CMSD_PID}" ]] && { echo -ne "CMSD pid :\t${CMSD_PID} -> "; echo_success; echo; } || { echo "CMSD pid not found"; echo_failure; echo; }
+  execEnvironment "${INSTANCE_NAME}" || exit
 
-    local XRD_PID_FILE=$(getPidFiles_xrd)
-    local XRD_PID=$( < "${XRD_PID_FILE}" ) #"
-    [[ -n "${XRD_PID}" ]] && { echo -ne "XROOTD pid :\t${XRD_PID} -> "; echo_success; echo; } || { echo "XROOTD pid not found"; echo_failure; echo; }
-
-    [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
+  ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
+  echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
+  startXROOTDprocs "${XRDCF}"
+  [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
 }
 
 ######################################
@@ -846,12 +885,12 @@ if [[ "$1" == "-c" ]]; then  ## check and restart if not running
     addcron # it will remove old xrd.sh line and
 
     # check status of xrootd and cmsd pids - if checkstate return error then restart all
-    checkstate
+    checkstate "$@"
     local state=$?
-    [[ ${state} != "0" ]] && restartXRD "$@"
-
+    [[ ${state} != "0" ]] && { restartXRD "$@" ; checkstate "$@"; }
 elif [[ "$1" == "-status" ]]; then
-    checkstate
+    shift
+    checkstate "$@"
 elif [[ "$1" == "-f" ]]; then   ## force restart
     shift
     addcron # it will remove old xrd.sh line and
@@ -859,11 +898,12 @@ elif [[ "$1" == "-f" ]]; then   ## force restart
     /bin/date
     echo "(Re-)Starting ...."
     restartXRD "$@"
-    checkstate
+    checkstate "$@"
 elif [[ "$1" == "-k" ]]; then  ## kill running processes
+    shift
     removecron
     killXRD
-    checkstate
+    checkstate "$@"
 elif [[ "$1" == "-logs" ]]; then  ## handlelogs
     handlelogs
 elif [[ "$1" == "-conf" ]]; then  ## create configuration
