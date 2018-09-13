@@ -105,11 +105,12 @@ else
     # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
     xrd.sched mint 32 maxt 2048 avlt 512 idle 780
 
-    # Enable tracing at the oss level.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290403
+    # Enable tracing at the ofs level.
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916538
     # Tracing may severely impact performance because all trace messages require
     # serialization to make sure trace messages are printed in the correct order.
-    ofs.trace open
+    # Enabling tracing can seriously degrade overall performance. This directive should only be used for debugging purposes.
+    ofs.trace -all
 
     # Auth Section  #
     # Specify the location of the security interface layer. - IS IT NEEDED?
