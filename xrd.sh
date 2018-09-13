@@ -476,7 +476,7 @@ s#XRDRUNDIR#${XRDRUNDIR}#g;
 # Configure the threads scheduling for xrootd
 # we allow xrootd to use up to 90% of maximum number of threads allowed to user
 local XRD_MAX_PROCS
-XRD_MAX_PROCS=$(/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
+XRD_MAX_PROCS=$(/usr/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
 # we compute the number of idle threads waiting for connections as the number of logical cores found
 local XRD_IDLE_THREADS
 XRD_IDLE_THREADS=$(grep -c '^processor' /proc/cpuinfo)
