@@ -440,6 +440,16 @@ s#MONALISA_HOST#${MONALISA_FQDN}#g;
 s#XRDRUNDIR#${XRDRUNDIR}#g;
 " "${XRDCF}";
 
+# Configure the threads scheduling for xrootd
+# we allow xrootd to use up to 90% of maximum number of threads allowed to user
+local XRD_MAX_PROCS=$(/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
+
+# we compute the number of idle threads waiting for connections as the number of logical cores found
+local XRD_IDLE_THREADS=$(grep -c '^processor' /proc/cpuinfo)
+
+# now use these info in the configuration file; we set unsed threads cleaning time to 60s
+sed --follow-symlinks -i "/xrd.sched/s/.*/    xrd.sched mint 32 idle 60 avlt ${XRD_IDLE_THREADS} maxt ${XRD_MAX_PROCS}/" "${XRDCF}";
+
 # write storage partitions; convert the /n to actual CRs and then pass that variable to perl; (otherwise it needs to be exported)
 SPACE=$(echo -e "${OSSCACHE}") perl -pi -e 's/OSSCACHE/$ENV{SPACE}/g;' "${XRDCF}";
 
