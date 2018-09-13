@@ -51,6 +51,10 @@ xrd.protocol xrootd *
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911319
 xrd.network buffsz 0 nodnr
 
+# Set timeout parameters for incoming connections
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911326
+xrd.timeout hail 30 kill 3 read 5 idle 60
+
 # Enable and set third-party-copy (TPC) parameters.
 # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290401
 ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
