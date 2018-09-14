@@ -328,7 +328,7 @@ SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";)
 [[ -n "${XRDSH_DEBUG}" ]] && echo "Found SE_NAME=${SE_NAME}"
 
 ## Find information about site from ML
-MONALISA_FQDN=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | head -n1) #'
+MONALISA_HOST=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | head -n1) #'
 
 ## Validate the ip - make sure is a public one and the reverse match the defined hostname
 # get my ip
@@ -395,7 +395,7 @@ MANAGER_ALIAS=$(echo "${MANAGER_IP_LIST}" | /usr/bin/wc -l)
 ## instance name can be something else; to be used when starting multiple servers, but we are not doing this
 [[ "${is_manager}" -eq "1" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
 
-export MONALISA_FQDN MANAGERHOST LOCALPATHPFX ROLE INSTANCE_NAME MANAGER_ALIAS
+export MONALISA_HOST MANAGERHOST LOCALPATHPFX ROLE INSTANCE_NAME MANAGER_ALIAS
 
 }
 
@@ -469,7 +469,7 @@ s#XRDMANAGERPORT#${XRDMANAGERPORT}#g;
 s#CMSDSERVERPORT#${CMSDSERVERPORT}#g;
 s#CMSDMANAGERPORT#${CMSDMANAGERPORT}#g;
 s#ACCLIB#${ACCLIB}#g;
-s#MONALISA_HOST#${MONALISA_FQDN}#g;
+s#MONALISA_HOST#${MONALISA_HOST}#g;
 s#XRDRUNDIR#${XRDRUNDIR}#g;
 " "${XRDCF}";
 
@@ -592,7 +592,7 @@ servMon() {
 
 ######################################
 startMon() {
-    [[ -z "${MONALISA_FQDN}" ]] && return 1;
+    [[ -z "${MONALISA_HOST}" ]] && return 1;
 
     getSrvToMon
     echo -n "Starting ApMon [${srvToMon}] ..."
