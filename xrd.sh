@@ -757,21 +757,34 @@ systemctl status xrootd@${INSTANCE_NAME}.service
 
 ######################################
 killXRD() {
-    echo -n "Stopping xrootd/cmsd: "
-    local XRDSHUSER xrd_procs
-    XRDSHUSER=$(id -nu)
+  echo -n "Stopping xrootd/cmsd: "
+  local XRDSHUSER xrd_procs
+  XRDSHUSER=$(id -nu)
 
-    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-    [[ -n "${xrd_procs}" ]] && /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
+  xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+  [[ -n "${xrd_procs}" ]] && /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
 
-    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-    [[ -n "${xrd_procs}" ]] && { /bin/sleep 2; /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"; }
+  xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+  [[ -n "${xrd_procs}" ]] && { /bin/sleep 2; /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"; }
 
-    xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-    [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
-    echo
+  xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
+  [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
+  echo
 
-    [[ -z "${XRDSH_NOAPMON}" ]] && { echo -n "Stopping ApMon:"; servMon -k; /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats; echo; }
+  if [[ -z "${XRDSH_NOAPMON}" ]]; then
+    local se apmon_pidfiles
+    [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
+
+    echo -n "Stopping ApMon:";
+    /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" -k;
+    /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats;
+
+    apmon_pidfiles=$(/bin/find $(/usr/bin/dirname "${apmonPidFile}") -name $(/bin/basename "${apmonPidFile}")*  2>/dev/null)
+    for pidf in ${apmon_pidfiles}; do kill $(< "${pidff}") 2>/dev/null; done
+
+    [[ -n "${apmon_pidfiles}" ]] && /bin/rm -rf -- "${apmon_pidfiles}"
+    echo;
+  fi
 }
 
 ######################################
