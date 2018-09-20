@@ -204,6 +204,17 @@ export XRDSHDIR
 # location of logs, admin, core dirs
 XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}
 export XRDRUNDIR
+/bin/mkdir -p "${XRDRUNDIR}"
+
+# ApMon files
+if [[ -z "${XRDSH_NOAPMON}" ]]; then
+  apmonPidFile="${XRDRUNDIR}/admin/apmon.pid"
+  apmonLogFile="${XRDRUNDIR}/logs/apmon.log"
+
+  export apmonPidFile apmonLogFile
+  /bin/mkdir -p $(/usr/bin/dirname "${apmonPidFile}") $(/usr/bin/dirname "${apmonLogFile}")
+  /bin/touch "${apmonPidFile}" "${apmonLogFile}"
+fi
 
 # location of configuration files; does not need to be in the same location with xrd.sh
 XRDCONFDIR=${XRDCONFDIR:-${XRDSHDIR}/xrootd.conf/}
@@ -447,10 +458,6 @@ XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
 CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
 cfg_set_xrdvalue "${XRDCF}"  __XRD_PIDFILE "${XRD_PIDFILE}"
 cfg_set_xrdvalue "${XRDCF}" __CMSD_PIDFILE "${CMSD_PIDFILE}"
-
-# ApMon files
-export apmonPidFile="${XRDRUNDIR}/admin/apmon.pid"
-export apmonLogFile="${XRDRUNDIR}/logs/apmon.log"
 
 ## Subscribe to all redirector ips and use load-balancing mode
 ## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
