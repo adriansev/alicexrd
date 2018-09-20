@@ -843,7 +843,7 @@ fi
 if [[ -z "${XRDSH_NOAPMON}" ]]; then
     # find pid file of apmon
     local is_apmon_pid
-    is_apmon_pid=$(/bin/find "${apmonPidFile}*" 2>/dev/null | /usr/bin/wc -l)
+    is_apmon_pid=$(/bin/find $(/usr/bin/dirname "${apmonPidFile}") -name $(/bin/basename "${apmonPidFile}")*  2>/dev/null | /usr/bin/wc -l)
     if (( is_apmon_pid > 0 )) ; then
       echo -n "apmon:"; echo_success; echo;
     else
