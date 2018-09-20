@@ -573,39 +573,25 @@ addcron() {
   /bin/rm -f "${cron_file}";
 }
 
-
 ######################################
-getSrvToMon() {
-  local se pid
-  srvToMon=""
+startMon () {
+  [[ -z "${MONALISA_HOST}" ]] && return 1;
+
+  local se pid srvToMon
   [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
 
+  srvToMon=""
   for typ in manager server ; do
     for srv in xrootd cmsd ; do
       pid=$(/usr/bin/pgrep -f -U "$USER" "$srv .*$typ" | head -1)
       [[ -n "${pid}" ]] && srvToMon="${srvToMon} ${se}${typ}_${srv} ${pid}"
     done
   done
-}
 
-######################################
-servMon() {
-  local se
-  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
-
-  /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" "$@"
+  echo -n "Starting ApMon [${srvToMon}] ..."
+  /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" -f "${srvToMon}"
+  echo_passed
   echo
-}
-
-######################################
-startMon() {
-    [[ -z "${MONALISA_HOST}" ]] && return 1;
-
-    getSrvToMon
-    echo -n "Starting ApMon [${srvToMon}] ..."
-    servMon -f "${srvToMon}"
-    echo_passed
-    echo
 }
 
 ######################################
