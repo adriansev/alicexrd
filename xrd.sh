@@ -213,7 +213,7 @@ if [[ -z "${XRDSH_NOAPMON}" ]]; then
 
   export apmonPidFile apmonLogFile
   /bin/mkdir -p $(/usr/bin/dirname "${apmonPidFile}") $(/usr/bin/dirname "${apmonLogFile}")
-  /bin/touch "${apmonPidFile}" "${apmonLogFile}"
+  /bin/touch "${apmonLogFile}"
 fi
 
 # location of configuration files; does not need to be in the same location with xrd.sh
