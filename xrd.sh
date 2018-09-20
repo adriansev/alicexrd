@@ -574,27 +574,6 @@ addcron() {
 }
 
 ######################################
-startMon () {
-  [[ -z "${MONALISA_HOST}" ]] && return 1;
-
-  local se pid srvToMon
-  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
-
-  srvToMon=""
-  for typ in manager server ; do
-    for srv in xrootd cmsd ; do
-      pid=$(/usr/bin/pgrep -f -U "$USER" "$srv .*$typ" | head -1)
-      [[ -n "${pid}" ]] && srvToMon="${srvToMon} ${se}${typ}_${srv} ${pid}"
-    done
-  done
-
-  echo -n "Starting ApMon [${srvToMon}] ..."
-  /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" -f "${srvToMon}"
-  echo_passed
-  echo
-}
-
-######################################
 create_limits_conf () {
 
 local FILE="99-xrootd_limits.conf"
@@ -757,6 +736,15 @@ systemctl status xrootd@${INSTANCE_NAME}.service
 
 ######################################
 killXRD() {
+  if [[ -n "${XRD_DONOTRECONF}" ]]; then
+    getLocations "$@"
+    eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
+    INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+    MONALISA_HOST=$(awk '/xrootd.monitor/ {split ($NF,fqdn,":"); print fqdn[1];}' ${XRDCF})  #'
+  else
+    set_system "$@"
+  fi
+
   echo -n "Stopping xrootd/cmsd: "
   local XRDSHUSER xrd_procs
   XRDSHUSER=$(id -nu)
@@ -794,6 +782,7 @@ if [[ -n "${XRD_DONOTRECONF}" ]]; then
   getLocations "$@"
   eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
   INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+  MONALISA_HOST=$(awk '/xrootd.monitor/ {split ($NF,fqdn,":"); print fqdn[1];}' ${XRDCF})  #'
 else
   set_system "$@"
 fi
@@ -854,11 +843,34 @@ return "${stateval}"
 }
 
 ######################################
+startMon () {
+  [[ -z "${MONALISA_HOST}" ]] && return 1;
+
+  local se pid srvToMon servmon_cmd
+  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
+
+  srvToMon=""
+  for typ in manager server ; do
+    for srv in xrootd cmsd ; do
+      pid=$(/usr/bin/pgrep -f -U "$USER" "$srv .*$typ" | head -1)
+      [[ -n "${pid}" ]] && srvToMon="${srvToMon} ${se}${typ}_${srv} ${pid}"
+    done
+  done
+
+  servmon_cmd="/usr/sbin/servMon.sh -f -p ${apmonPidFile} ${se}xrootd ${srvToMon}"
+  echo -n "Starting ApMon [${srvToMon}] ..."
+  eval "${servmon_cmd}"
+  echo_passed
+  echo
+}
+
+######################################
 startXRD () {
   if [[ -n "${XRD_DONOTRECONF}" ]]; then
     getLocations "$@"
     eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
     INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
+    MONALISA_HOST=$(awk '/xrootd.monitor/ {split ($NF,fqdn,":"); print fqdn[1];}' ${XRDCF})  #'
   else
     set_system "$@"
   fi
@@ -873,7 +885,7 @@ startXRD () {
 
 ######################################
 restartXRD () {
-    killXRD
+    killXRD "$@"
     startXRD "$@"
 }
 
