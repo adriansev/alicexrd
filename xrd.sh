@@ -759,6 +759,9 @@ killXRD() {
   [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
   echo
 
+  # clean up service files and sockets
+  [[ -e "${XRDRUNDIR}/admin/" ]] && rm -rf ${XRDRUNDIR}/admin/*
+
   if [[ -z "${XRDSH_NOAPMON}" ]]; then
     local se apmon_pidfiles
     [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
