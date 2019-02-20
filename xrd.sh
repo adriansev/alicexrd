@@ -67,14 +67,15 @@ ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if (
 getPidFiles_xrd_instance () {
 [[ -z "${1}" ]] && { echo "getPidFiles_xrd_instance : instance name should be specified"; exit 1; }
 local INSTANCE="${1}"
-ps -o args= $(/usr/bin/pgrep -f "xrootd.*${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep "xrootd") | awk -v NAME="-n ${INSTANCE}" '$0 ~ NAME {for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+
 }
 
 ######################################
 getPidFiles_cmsd_instance () {
 [[ -z "${1}" ]] && { echo "getPidFiles_cmsd_instance : instance name should be specified"; exit 1; }
 local INSTANCE="${1}"
-ps -o args= $(/usr/bin/pgrep -f "cmsd.*${INSTANCE}") | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
+ps -o args= $(/usr/bin/pgrep "cmsd") | awk -v NAME="-n ${INSTANCE}" '$0 ~ NAME {for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
 }
 
 ######################################
