@@ -356,7 +356,7 @@ REVERSE=$(/bin/awk '/FQDN/ {gsub("FQDN:","",$1); print $1;}'  <<< "${MYNET}" ) #
 
 ## make sure the exit public ip is locally configured
 local ip_list
-ip_list=$(/sbin/ip addr show scope global permanent up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1];}') #'
+ip_list=$(/sbin/ip addr show scope global up | /bin/awk '/inet/ {split ($2,ip,"/"); print ip[1];}') #'
 [[ "${ip_list}" =~ ${MYIP} ]] || { echo "Server without public/rutable ip. No NAT schema supported at this moment"; exit 1; }
 
 ## what is my local set hostname
