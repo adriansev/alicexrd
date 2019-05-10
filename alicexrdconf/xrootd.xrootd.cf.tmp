@@ -67,6 +67,10 @@ cms.delay servers 1 startup 10
 # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
 cms.space recalc 120 min 1% 32g 1% 16g
 
+# Specify when threads are created, how many can be created, and when they should be destroyed.
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
+xrd.sched mint 32 maxt 2048 avlt 512 idle 780
+
 #########################
 ##   MANAGER SECTION   ##
 #########################
@@ -105,9 +109,6 @@ else
     # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
     xrootd.chksum max 2 md5
 
-    # Specify when threads are created, how many can be created, and when they should be destroyed.
-    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
-    xrd.sched mint 32 maxt 2048 avlt 512 idle 780
 
     # Enable tracing at the ofs level.
     # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916538
