@@ -53,7 +53,7 @@ xrd.network buffsz 0 nodnr
 
 # Set timeout parameters for incoming connections
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911326
-xrd.timeout hail 30 kill 3 read 5 idle 60
+xrd.timeout hail 60 kill 30 read 30 idle 180
 
 # Enable and set third-party-copy (TPC) parameters.
 # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290401
