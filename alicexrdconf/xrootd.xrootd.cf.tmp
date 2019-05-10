@@ -65,7 +65,7 @@ cms.delay servers 1 startup 10
 
 # Specify how servers are selected for file creation
 # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
-cms.space min 48g 16g
+cms.space recalc 120 min 1% 32g 1% 16g
 
 #########################
 ##   MANAGER SECTION   ##
