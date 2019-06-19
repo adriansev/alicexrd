@@ -13,10 +13,18 @@ set portCMSD   = CMSDMANAGERPORT
 ##########################################################
 ##   COMMON SETTINGS   ##
 
+# DEFAULTS
+# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916543
+# explicit set the defaults
+oss.defaults nocheck nodread nomig nomkeep nomlock nommap nopurge norcreate nostage xattrs
+
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911329
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290409 - OSS options - see defaults for details
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290408 - OSS options - defaults
-all.export / writable
+# http://xrootd.org/doc/dev50/xrd_config.htm#_Toc10218114
+all.export / nolock writable
+
+# Specify the way a disk partition is selected for file placement.
+# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916542
+oss.alloc 0 0 0
 
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911325
 all.sitename $myName
@@ -28,16 +36,19 @@ all.manager $myRedirector $portCMSD
 # Specify the location of the administrative communications path.
 # for systemd service file it has to be changed to a global, not user linked location
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911313
+# http://xrootd.org/doc/dev50/xrd_config.htm#_Toc10218096
+# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504659
 all.adminpath XRDRUNDIR/admin/
 
 # Specify the location of the xrootd.pid file
 # for systemd service file it has to be removed and the resulting /tmp/<instance name>/ files to be ignored
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911344
+# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504685
 all.pidpath XRDRUNDIR/admin/
 
 # Specify execution tracing options.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911327
-#all.trace debug all
+#all.trace all -debug
 
 # Enable I/O monitoring.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911343
@@ -49,33 +60,39 @@ xrd.protocol xrootd *
 
 # Enable window scaling on the monostream connection.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911319
-xrd.network buffsz 0 nodnr
+xrd.network buffsz 0 nodnr nokeepalive
 
 # Set timeout parameters for incoming connections
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911326
-xrd.timeout hail 60 kill 30 read 30 idle 180
+xrd.timeout hail 20 kill 5 read 5 idle 30
 
-# Enable and set third-party-copy (TPC) parameters.
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290401
-ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
+# Specify how asynchronous I/O is to be handled.
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911332
+# xrootd.async off
+xrootd.async force limit 8 maxsegs 8 maxstalls 4 maxtot 2048 segsz 64k syncw
 
-# Manage processing latency.
-# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504677
-cms.delay servers 1 startup 10
-
-# Specify how servers are selected for file creation
-# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
-cms.space recalc 120 min 1% 32g 1% 16g
+# Specify how file check sums are computed.
+# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
+xrootd.chksum max 2 md5
 
 # Specify when threads are created, how many can be created, and when they should be destroyed.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
-xrd.sched mint 32 maxt 2048 avlt 512 idle 780
+xrd.sched mint 16 avlt 16 idle 120s maxt 1024
 
 # Enable tracing at the ofs level.
-# Tracing may severely impact performance because all trace messages require serialization to make sure trace messages are printed in the correct order.
-# Enabling tracing can seriously degrade overall performance. This directive should only be used for debugging purposes.
 # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916538
+# Tracing may severely impact performance because all trace messages require
+# serialization to make sure trace messages are printed in the correct order.
+# Enabling tracing can seriously degrade overall performance. This directive should only be used for debugging purposes.
 ofs.trace -all
+
+# Enable and set third-party-copy (TPC) parameters.
+# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916536
+ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
+
+# Specify how servers are selected for file creation - manager and server
+# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
+cms.space recalc 30 min 1% 20g 1% 20g
 
 #########################
 ##   MANAGER SECTION   ##
@@ -86,33 +103,42 @@ if $myRedirector
     all.role manager
 
     # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911316
-    xrd.port XRDMANAGERPORT
+    xrd.port $portXRDman
 
-    # Specify the parameters for the load balancing scheduling algorithm.
+    # Control the keep-alive and load reporting frequency.
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504686
+    cms.ping 15 log 3 usage 40
+
+    # Manage processing latency.
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504677
+    cms.delay servers 1 startup 5 drop 240 full 30 qdl 62 hold 500 lookup 15 overload 30
+
+    # Set the time file existence information is to be cached in memory.
+    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504679
+    cms.fxhold 5m 8h
+
+    # Specify the parameters for the load balancing scheduling algorithm - manager and supervisor
     # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504668
-    cms.sched cpu 10 io 10 space 80
+    cms.sched cpu 40 io 40 space 20
 
 else
 ########################
 ##   SERVER SECTION   ##
 ########################
+
     # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504656
     all.role server
 
     # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911316
-    xrd.port XRDSERVERPORT
+    xrd.port $portXRDsrv
 
-    # DEFAULTS
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290408
-    oss.defaults nomig nodread nocheck norcreate nolock
+    # Specify how load is computed and reported.
+    # http://xrootd.org/doc/dev410/cms_config.htm#_Toc8247264
+    cms.perf int 20 pgm /home/aliprod/bin/cms_monPerf 5
 
-    # Specify how asynchronous I/O is to be handled.
-    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911332
-    xrootd.async off
-
-    # Specify how file check sums are computed.
-    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
-    xrootd.chksum max 2 md5
+    # Specify how frequently internal statistics are reconciled with actual available space in each disk partition.
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916551
+    oss.cachescan 300
 
     # Auth Section  #
     # Specify the location of the security interface layer. - IS IT NEEDED?
@@ -125,24 +151,20 @@ else
     sec.protocol /usr/lib64 unix
 
     # Enable the access control, acc, component.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290388
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916523
     ofs.authorize
 
     # Specify the location of the file system authorization interface layer.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290390
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916525
     ofs.authlib /usr/lib64/ACCLIB
 
-    # Specify the way a disk partition is selected for file placement.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290407
-    oss.alloc 0 0 0
-
     # The funny ALICE name translation, for the global metamanager to aggregate all the clusters
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290419
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916555
     oss.namelib /usr/lib64/libXrdAggregatingName2Name.so LOCALPATHPFX
 
     # The metamanager acts as a virtual stager. Beware, internally xrootd strips the trailing slashes so, no point in adding them here
     # Specify where the local file system name space is actually rooted.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc517290410
+    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916545
     oss.localroot LOCALROOT
 
     # Specify the location of a file system that is to be used to hold data files.
