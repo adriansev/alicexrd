@@ -69,7 +69,7 @@ xrd.timeout hail 20 kill 5 read 5 idle 30
 # Specify how asynchronous I/O is to be handled.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911332
 # xrootd.async off
-xrootd.async force limit 8 maxsegs 8 maxstalls 4 maxtot 2048 segsz 64k syncw
+xrootd.async force limit 8 maxsegs 8 maxstalls 4 maxtot 2048 segsize 64k syncw
 
 # Specify how file check sums are computed.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
