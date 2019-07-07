@@ -9,7 +9,7 @@ SETCOLOR_FAILURE="echo -en \\033[1;31m"
 SETCOLOR_WARNING="echo -en \\033[1;33m"
 SETCOLOR_NORMAL="echo -en \\033[0;39m"
 
-CURLCMD="/usr/bin/curl -m 1 -fsSLk"
+CURLCMD="/usr/bin/curl --ipv4 -m 1 -fsSLk"
 
 ######################################
 check_prerequisites() {
