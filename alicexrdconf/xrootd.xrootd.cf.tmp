@@ -64,12 +64,12 @@ xrd.network buffsz 0 nodnr nokeepalive
 
 # Set timeout parameters for incoming connections
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911326
-xrd.timeout hail 20 kill 5 read 5 idle 30
+xrd.timeout hail 30 kill 10 read 20 idle 60
 
 # Specify how asynchronous I/O is to be handled.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911332
-# xrootd.async off
-xrootd.async force limit 8 maxsegs 8 maxstalls 4 maxtot 2048 segsize 64k syncw
+xrootd.async off
+#xrootd.async force limit 8 maxsegs 8 maxstalls 4 maxtot 2048 segsize 64k syncw
 
 # Specify how file check sums are computed.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
@@ -77,7 +77,7 @@ xrootd.chksum max 2 md5
 
 # Specify when threads are created, how many can be created, and when they should be destroyed.
 # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
-xrd.sched mint 16 avlt 16 idle 120s maxt 1024
+xrd.sched mint 8 avlt 8 idle 120s maxt 1024
 
 # Enable tracing at the ofs level.
 # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916538
@@ -92,7 +92,7 @@ ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
 
 # Specify how servers are selected for file creation - manager and server
 # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
-cms.space recalc 30 min 1% 20g 1% 20g
+cms.space recalc 120 min 50g 30g
 
 #########################
 ##   MANAGER SECTION   ##
@@ -107,19 +107,19 @@ if $myRedirector
 
     # Control the keep-alive and load reporting frequency.
     # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504686
-    cms.ping 15 log 3 usage 40
+    cms.ping 30 log 3 usage 10
 
     # Manage processing latency.
     # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504677
-    cms.delay servers 1 startup 5 drop 240 full 30 qdl 62 hold 500 lookup 15 overload 30
+    cms.delay delnode 20m drop 5m hold 500 lookup 15 overload 5 qdl 15 servers 1 startup 10
 
     # Set the time file existence information is to be cached in memory.
     # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504679
-    cms.fxhold 5m 8h
+    # cms.fxhold 5m 8h
 
     # Specify the parameters for the load balancing scheduling algorithm - manager and supervisor
     # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504668
-    cms.sched cpu 40 io 40 space 20
+    cms.sched cpu 50 io 50 space 30
 
 else
 ########################
