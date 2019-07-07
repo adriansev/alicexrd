@@ -760,6 +760,9 @@ killXRD() {
   [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
   echo
 
+  MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) { if ($x == "pgm") {print $(x+1)} }}' ${XRDCF} ) #'
+  [[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename ${MON_PERF})
+
   # clean up service files and sockets
   [[ -e "${XRDRUNDIR}/admin/" ]] && rm -rf ${XRDRUNDIR}/admin/*
 
