@@ -134,7 +134,7 @@ else
 
     # Specify how load is computed and reported.
     # http://xrootd.org/doc/dev410/cms_config.htm#_Toc8247264
-    cms.perf int 20 pgm /home/aliprod/bin/cms_monPerf 5
+    cms.perf int 20 pgm /usr/share/xrootd/utils/cms_monPerf 5
 
     # Specify how frequently internal statistics are reconciled with actual available space in each disk partition.
     # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916551
