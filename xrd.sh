@@ -766,6 +766,9 @@ killXRD() {
   # clean up service files and sockets
   [[ -e "${XRDRUNDIR}/admin/" ]] && rm -rf ${XRDRUNDIR}/admin/*
 
+  CMSPERF=$(awk '/cms\.perf/ {print $(NF-1)}' ${XRDCF}) #'
+  /usr/bin/pkill -9 -f -u "${XRDSHUSER}" ${CMSPERF}
+
   if [[ -z "${XRDSH_NOAPMON}" ]]; then
     local se apmon_pidfiles
     [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
