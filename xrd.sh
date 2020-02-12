@@ -571,6 +571,7 @@ addcron() {
 @reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n" >> ${cron_file}
 
   /usr/bin/crontab "${cron_file}"; # put back the cron with xrd.sh
+  /usr/bin/crontab -l | /usr/bin/sed '/^$/d;s/[[:blank:]]//g' | /usr/bin/crontab # clean up any whitespaces
   /bin/rm -f "${cron_file}";
 }
 
