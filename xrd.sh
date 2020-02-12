@@ -607,7 +607,7 @@ handlelogs() {
   #local todaynow=$(date +%Y%m%d_%k%M%S)
 
   cd "${XRDRUNDIR}/logs" || { echo "XRDRUNDIR/logs not found"; return 1; }
-  not_compressed=$(/bin/find . -type f -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
+  not_compressed=$(/bin/find . -type f -not -name '*.lock' -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
 
   if [[ ! -f "${LOCK}" ]]; then
     touch "${LOCK}"
