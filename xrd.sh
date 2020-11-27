@@ -150,8 +150,11 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 [[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
 
 ## create the command lines
-local CMSD_START="/usr/bin/cmsd  -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
-local XRD_START="/usr/bin/xrootd -b ${__XRD_DEBUG}  -n ${__XRD_INSTANCE_NAME}  -l ${__XRD_LOG}  -s ${__XRD_PIDFILE}  -c ${CFG}"
+[[ -z "{XRDSH_CMD_CMSD}" ]] && XRDSH_CMD_CMSD="/usr/bin/cmsd"
+local CMSD_START="${XRDSH_CMD_CMSD}  -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
+
+[[ -z "{XRDSH_CMD_XRD}" ]] && XRDSH_CMD_XRD="/usr/bin/xrootd"
+local XRD_START="${XRDSH_CMD_XRD} -b ${__XRD_DEBUG}  -n ${__XRD_INSTANCE_NAME}  -l ${__XRD_LOG}  -s ${__XRD_PIDFILE}  -c ${CFG}"
 
 ## make sure that no services with the same instance name are started
 local cmsd_instances
@@ -876,7 +879,7 @@ startMon () {
 }
 
 ######################################
-startXRD () {
+startSERVICES () {
   if [[ -n "${XRD_DONOTRECONF}" ]]; then
     getLocations "$@"
     eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
@@ -897,7 +900,7 @@ startXRD () {
 ######################################
 restartXRD () {
     killXRD "$@"
-    startXRD "$@"
+    startSERVICES "$@"
 }
 
 ######################
