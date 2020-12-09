@@ -273,8 +273,8 @@ xrd_pid=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
 [[ -n "${xrd_pid}" ]] && /usr/bin/kill "${xrd_pid}"
 [[ -n "${cmsd_pid}" ]] && /usr/bin/kill "${cmsd_pid}"
 
-MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) {if ($x == "pgm") {print $(x+1)} }}' ${CFG}) #'
-[[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename ${MON_PERF})
+MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) {if ($x == "pgm") {print $(x+1)} }}' "${CFG}") #'
+[[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename "${MON_PERF}")
 }
 
 ######################################
