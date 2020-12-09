@@ -16,7 +16,6 @@ command -v curl &> /dev/null || { echo "curl command not found; do : yum -y inst
 command -v bzip2 &> /dev/null || { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
 command -v pgrep &> /dev/null || { echo "pgrep command not found; do : yum -y install procps-ng.x86_64"; exit 1; }
 command -v awk &> /dev/null || { echo "pgrep command not found; do : yum -y install awk"; exit 1; }
-##CURLCMD="curl --ipv4 -m 1 -fsSLk"
 
 ######################################
 OK="[  ${GREEN}OK${NORMAL}  ]"
@@ -93,10 +92,9 @@ where argument is _one_ of :
 [-addcron|--addcron] add/refresh cron line
 
 Environment variables:
-XRDSH_NOWARN_ASLIB : if set (any value) do not warn xrd.sh is sourced
 XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDSHDIR/run/
 XRDCONFDIR : location of system.cnf and XRDCF (default xrootd.xrootd.cf) conf files; if not set it will be XRDSHDIR/xrootd.conf/
-XRDSH_DEBUG : if set (any value) it will enable various printouts of srd.sh";
+XRDCTL_DEBUG : if set (any value) it will enable various printouts of xrdctl";
 }
 
 ######################################
@@ -108,8 +106,8 @@ exitcode=$?
 [[ -n "${proc_out}" ]] && awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' <<< "${proc_out}"
 return ${exitcode}
 }
-getPidFiles_xrd () { getPidFiles xrootd; return $?; }
-getPidFiles_cmsd () { getPidFiles cmsd; return $?; }
+getPidFiles_xrd () { XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}; getPidFiles "${XRDCTL_CMD_XRD}"; return $?; }
+getPidFiles_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; getPidFiles "${XRDCTL_CMD_CMSD}"; return $?; }
 
 ######################################
 getInstances_list () {
@@ -122,8 +120,8 @@ pid_list=$(awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}
 echo "${pid_list}"
 return 0;
 }
-getInstances_list_xrd () { getInstance xrootd; return $?; }
-getInstances_list_cmsd () { getInstance cmsd; return $?; }
+getInstances_list_xrd () { XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}; getInstance "${XRDCTL_CMD_XRD}"; return $?; }
+getInstances_list_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; getInstance "${XRDCTL_CMD_CMSD}"; return $?; }
 
 ######################################
 getInstance_pid () {
@@ -138,8 +136,8 @@ instance_pid=$(awk -v name="${instance}" '{for ( x = 1; x <= NF; x++ ) { if ($x 
 echo "${instance_pid}"
 return 0;
 }
-getInstance_pid_xrd () { getInstance_pid xrootd "${1}"; return $?; }
-getInstance_pid_cmsd () { getInstance_pid cmsd "${1}"; return $?; }
+getInstance_pid_xrd () { XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}; getInstance_pid "${XRDCTL_CMD_XRD}" "${1}"; return $?; }
+getInstance_pid_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; getInstance_pid "${XRDCTL_CMD_CMSD}" "${1}"; return $?; }
 
 
 ######################################
@@ -205,7 +203,7 @@ Status XROOTD :\t${xrd_status}
 
 ######################################
 startXROOTDprocs () {
-local CFG cmsd_needed cmsd_instances XRDSH_CMD_CMSD CMSD_START xrd_instances XRDSH_CMD_XRD XRD_START
+local CFG cmsd_needed cmsd_instances XRDCTL_CMD_CMSD CMSD_START xrd_instances XRDCTL_CMD_XRD XRD_START
 CFG="${1}"
 [[ -f "${CFG}" ]] || { echo "${CFG} not found!!"; return 1; }
 
@@ -230,9 +228,9 @@ if [[ -n "${cmsd_needed}" ]]; then
     cmsd_instances=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
     [[ ${cmsd_instances}  =~ ${__INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME: ${cmsd_instances}/${__INSTANCE_NAME}! <<<<<<<"; return 1; }
 
-    [[ -z "${XRDSH_CMD_CMSD}" ]] && XRDSH_CMD_CMSD="/usr/bin/cmsd"
-    [[ -n "${XRDSH_PRELOAD}" ]] && XRDSH_CMD_CMSD="LD_PRELOAD=${XRDSH_PRELOAD} ${XRDSH_CMD_CMSD}"
-    CMSD_START="${XRDSH_CMD_CMSD} -b ${__CMSD_DEBUG} -n ${__INSTANCE_NAME} -s ${__CMSD_PIDFILE} -a ${__CMSD_ADMINPATH} -w ${__CMSD_ADMINPATH} -l ${__CMSD_LOG} -c ${CFG}"
+    XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}
+    [[ -n "${XRDCTL_PRELOAD}" ]] && XRDCTL_CMD_CMSD="LD_PRELOAD=${XRDCTL_PRELOAD} ${XRDCTL_CMD_CMSD}"
+    CMSD_START="${XRDCTL_CMD_CMSD} -b ${__CMSD_DEBUG} -n ${__INSTANCE_NAME} -s ${__CMSD_PIDFILE} -a ${__CMSD_ADMINPATH} -w ${__CMSD_ADMINPATH} -l ${__CMSD_LOG} -c ${CFG}"
 
     # start the service
     ${CMSD_START}
@@ -253,9 +251,9 @@ __XRD_ADMINPATH="$(dirname ${__XRD_PIDFILE})"
 xrd_instances=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
 [[ ${xrd_instances} =~ ${__INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME: ${xrd_instances}/${__INSTANCE_NAME}! <<<<<<<"; return 1; }
 
-[[ -z "${XRDSH_CMD_XRD}" ]] && XRDSH_CMD_XRD="/usr/bin/xrootd"
-[[ -n "${XRDSH_PRELOAD}" ]] && XRDSH_CMD_XRD="LD_PRELOAD=${XRDSH_PRELOAD} ${XRDSH_CMD_XRD}"
-XRD_START="${XRDSH_CMD_XRD}  -b ${__XRD_DEBUG} -n ${__INSTANCE_NAME} -s ${__XRD_PIDFILE} -a ${__XRD_ADMINPATH} -w ${__XRD_ADMINPATH} -l ${__XRD_LOG} -c ${CFG}"
+XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}
+[[ -n "${XRDCTL_PRELOAD}" ]] && XRDCTL_CMD_XRD="LD_PRELOAD=${XRDCTL_PRELOAD} ${XRDCTL_CMD_XRD}"
+XRD_START="${XRDCTL_CMD_XRD}  -b ${__XRD_DEBUG} -n ${__INSTANCE_NAME} -s ${__XRD_PIDFILE} -a ${__XRD_ADMINPATH} -w ${__XRD_ADMINPATH} -l ${__XRD_LOG} -c ${CFG}"
 
 # start the service
 ${XRD_START}
@@ -352,7 +350,7 @@ if [[ -n "${1}" ]]; then
 
     [[ -f "${CONF_ARG}" ]] && CONF_LIST+=("${CONF_ARG}")  # is arg is file
     if [[ -d "${CONF_ARG}" ]]; then  # is arg is directory
-        if [[ -n "${XRDSH_MULTISRV}" ]]; then
+        if [[ -n "${XRDCTL_MULTISRV}" ]]; then
             for conf_file in "${CONF_ARG}"/*.xrdcfg; do
                 CONF_LIST+=("${conf_file}");
             done
