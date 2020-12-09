@@ -12,11 +12,11 @@ if test -t 1; then
     fi
 fi
 
-command -v curl || { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
-command -v bzip2 || { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
-command -v pgrep || { echo "pgrep command not found; do : yum -y install procps-ng.x86_64"; exit 1; }
-command -v awk || { echo "pgrep command not found; do : yum -y install awk"; exit 1; }
-CURLCMD="curl --ipv4 -m 1 -fsSLk"
+command -v curl &> /dev/null || { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
+command -v bzip2 &> /dev/null || { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
+command -v pgrep &> /dev/null || { echo "pgrep command not found; do : yum -y install procps-ng.x86_64"; exit 1; }
+command -v awk &> /dev/null || { echo "pgrep command not found; do : yum -y install awk"; exit 1; }
+##CURLCMD="curl --ipv4 -m 1 -fsSLk"
 
 ######################################
 OK="[  ${GREEN}OK${NORMAL}  ]"
@@ -173,8 +173,8 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 local cmsd_pid cmsd_status cmsd_pid_found cmsd_pid_recorded __CMSD_PIDFILE
 cmsd_pid_found=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
-__CMSD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/cmsd.pid"  # it will be fenced, so we must infer the actual name
-cmsd_pid_recorded=$(<"${__CMSD_PIDFILE}")
+__CMSD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/cmsd.pid"
+[[ -e "${__CMSD_PIDFILE}" ]] && cmsd_pid_recorded=$(<"${__CMSD_PIDFILE}")
 [[ -e "${__CMSD_PIDFILE}" && -z "${cmsd_pid_found}" ]] && cmsd_pidf_present_but_dead=" : cmsd pid file is present but process is not running"
 [[ "${cmsd_pid_found}" -eq "${cmsd_pid_recorded}" ]] && cmsd_pid="${cmsd_pid_found}"
 if [[ -n "${cmsd_pid}" ]]; then
@@ -185,8 +185,8 @@ fi
 
 local xrd_pid xrd_status xrd_pid_found xrd_pid_recorded __XRD_PIDFILE
 xrd_pid_found=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
-__XRD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/xrootd.pid"  # it will be fenced, so we must infer the actual name 
-xrd_pid_recorded=$(<"${__XRD_PIDFILE}")
+__XRD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/xrootd.pid"
+[[ -e "${__XRD_PIDFILE}" ]] && xrd_pid_recorded=$(<"${__XRD_PIDFILE}")
 [[ -e "${__XRD_PIDFILE}" && -z "${xrd_pid_found}" ]] && xrd_pidf_present_but_dead=" : xrootd pid file is present but process is not running"
 [[ "${xrd_pid_found}" -eq "${xrd_pid_recorded}" ]] && xrd_pid="${xrd_pid_found}"
 if [[ -n "${xrd_pid}" ]]; then
@@ -216,7 +216,7 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 cmsd_needed=$(grep 'all.role' "${CFG}")
 if [[ -n "${cmsd_needed}" ]]; then
     local __CMSD_PIDFILE __CMSD_ADMINPATH
-    __CMSD_PIDFILE="/tmp/xrootd_$(id -u)/cmsd.pid"  # it will be "fenced" by xrootd
+    __CMSD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/cmsd.pid"  # it will be "fenced" by xrootd
     __CMSD_ADMINPATH="$(dirname ${__CMSD_PIDFILE})"
 
     ## make sure that they are defined
@@ -240,7 +240,7 @@ fi
 
 ## make sure that they are defined
 local __XRD_PIDFILE __XRD_ADMINPATH
-__XRD_PIDFILE="/tmp/xrootd_$(id -u)/xrootd.pid"  # it will be "fenced" by xrootd
+__XRD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/xrootd.pid"  # it will be "fenced" by xrootd
 __XRD_ADMINPATH="$(dirname ${__XRD_PIDFILE})"
 
 # shellcheck disable=2153
@@ -272,8 +272,11 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 cmsd_pid=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
 xrd_pid=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
-[[ -n "${xrd_pid}" ]] && /usr/bin/pkill -u "$(id -u)" "${xrd_pid}"
-[[ -n "${cmsd_pid}" ]] && /usr/bin/pkill -u "$(id -u)" "${cmsd_pid}"
+[[ -n "${xrd_pid}" ]] && /usr/bin/kill "${xrd_pid}"
+[[ -n "${cmsd_pid}" ]] && /usr/bin/kill "${cmsd_pid}"
+
+MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) {if ($x == "pgm") {print $(x+1)} }}' ${CFG}) #'
+[[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename ${MON_PERF})
 }
 
 ######################################
@@ -362,8 +365,7 @@ fi
 if [[ ${#CONF_LIST[@]} -eq 0 ]]; then  # if the configuration was not specified then..
 XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}  # location of logs, admin, core dirs
 XRDCONFDIR=${XRDCONFDIR:-${XRDSHDIR}/xrootd.conf/}  # location of configuration file(s)
-
-    if [[ -n "${XRDSH_MULTISRV}" ]]; then
+    if [[ -n "${XRDCTL_MULTISRV}" ]]; then
         for conf_file in "${XRDCONFDIR}"/*.xrdcfg; do
             CONF_LIST+=("${conf_file}");
         done
