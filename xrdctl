@@ -101,10 +101,12 @@ XRDCTL_DEBUG : if set (any value) it will enable various printouts of xrdctl";
 getPidFiles () {
 [[ -z "${1}" ]] && return 1;
 local proc_out exitcode
-proc_out=$(/usr/bin/pgrep -u "$(id -u)" -ax "${1}")
-exitcode=$?
-[[ -n "${proc_out}" ]] && awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' <<< "${proc_out}"
-return ${exitcode}
+proc_out="$(/usr/bin/pgrep -u $(id -u) -ax $(basename ${1}))"
+[[ -z "${proc_out}" ]] && return $?
+files_list=$(awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' <<< "${proc_out}") #'
+[[ -z "${files_list}" ]] && return 1;
+echo "${files_list}"
+return 0;
 }
 getPidFiles_xrd () { XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}; getPidFiles "${XRDCTL_CMD_XRD}"; return $?; }
 getPidFiles_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; getPidFiles "${XRDCTL_CMD_CMSD}"; return $?; }
@@ -113,7 +115,7 @@ getPidFiles_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; getPidF
 getInstances_list () {
 [[ -z "${1}" ]] && return 1;
 local proc_out pid_list
-proc_out=$(/usr/bin/pgrep -u "$(id -u)" -ax "${1}")
+proc_out="$(/usr/bin/pgrep -u $(id -u) -ax $(basename ${1}))"
 [[ -z "${proc_out}" ]] && return $?
 pid_list=$(awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}' <<< "${proc_out}") #'
 [[ -z "${pid_list}" ]] && return 1;
@@ -126,10 +128,9 @@ getInstances_list_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; g
 ######################################
 getInstance_pid () {
 [[ -z "${1}" || -z "${2}" ]] && return 1;
-local cmd instance proc_out instance_pid
-cmd="${1}"
+local instance proc_out instance_pid
+proc_out="$(/usr/bin/pgrep -u $(id -u) -ax $(basename ${1}))"
 instance="${2}"
-proc_out="$(/usr/bin/pgrep -u $(id -u) -ax ${cmd})"
 [[ -z "${proc_out}" ]] && return $?
 instance_pid=$(awk -v name="${instance}" '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n" && $(x+1) == name ) {print $1} }}' <<< "${proc_out}") #'
 [[ -z "${instance_pid}" ]] && return 1;
@@ -269,9 +270,10 @@ CFG="${1}"
 eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 cmsd_pid=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
+[[ -n "${cmsd_pid}" ]] && /usr/bin/kill "${cmsd_pid}"
+
 xrd_pid=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
 [[ -n "${xrd_pid}" ]] && /usr/bin/kill "${xrd_pid}"
-[[ -n "${cmsd_pid}" ]] && /usr/bin/kill "${cmsd_pid}"
 
 MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) {if ($x == "pgm") {print $(x+1)} }}' "${CFG}") #'
 [[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename "${MON_PERF}")
