@@ -912,37 +912,7 @@ restartXRD () {
 ##    Main logic    ##
 ######################
 xrdsh_main() {
-if [[ "$1" == "-c" ]]; then  ## check and restart if not running
-    shift
-
-    # if we are reconfiguring then also check the keys
-    [[ -z "${XRD_DONOTRECONF}" ]] && checkkeys
-
-    addcron # it will remove old xrd.sh line and
-
-    # check status of xrootd and cmsd pids - if checkstate return error then restart all
-    checkstate "$@"
-    local state=$?
-    [[ ${state} != "0" ]] && { restartXRD "$@" ; checkstate "$@"; }
-elif [[ "$1" == "-status" ]]; then
-    shift
-    checkstate "$@"
-elif [[ "$1" == "-f" ]]; then   ## force restart
-    shift
-    addcron # it will remove old xrd.sh line and
-    [[ -z "${XRD_DONOTRECONF}" ]] && checkkeys
-    /bin/date
-    echo "(Re-)Starting ...."
-    restartXRD "$@"
-    checkstate "$@"
-elif [[ "$1" == "-k" ]]; then  ## kill running processes
-    shift
-    removecron
-    killXRD
-    checkstate "$@"
-elif [[ "$1" == "-logs" ]]; then  ## handlelogs
-    handlelogs
-elif [[ "$1" == "-conf" ]]; then  ## create configuration
+if [[ "$1" == "-conf" ]]; then  ## create configuration
     shift
     set_system "$@"
 elif [[ "$1" == "-systemd" ]]; then  ## create configuration
@@ -950,18 +920,11 @@ elif [[ "$1" == "-systemd" ]]; then  ## create configuration
     generate_systemd "$@"
 elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
     checkkeys
-elif [[ "$1" == "-addcron" ]]; then  ## add cron line
-    addcron # it will remove old xrd.sh line and
 elif [[ "$1" == "-limits" ]]; then  ## generate limits file
     create_limits_conf
 else
-    echo "usage: xrd.sh arg";
+    echo "usage: ${0} arg";
     echo "where argument is _one_ of :"
-    echo " [-f] force restart";
-    echo " [-c] check and restart if not running";
-    echo " [-k] kill running processes";
-    echo " [-status] show if xrootd|cmsd pids are present";
-    echo " [-logs] manage the logs";
     echo " [-conf] just (re)create configuration; optional args : <configuration_template> <xrootd_configuration>";
     echo " [-getkeys] just get keys";
     echo " [-addcron] add/refresh cron line";
@@ -969,11 +932,6 @@ else
     echo " [-systemd] generate systemd services files";
     echo "";
     echo "Environment variables:";
-    echo "  XRDSH_NOWARN_ASLIB : if set (any value) do not warn xrd.sh is sourced"
-    echo "  XRDREADONLY : if set (any value) export path as not writable - server will not be elected for writes "
-    echo "  XRD_DONOTRECONF : if set (any value) the configuration of template file will be skipped;
-  the conf file that will be used is either the default XRDCONFDIR/xrootd.xrootd.cf, the argument specified to -c,-f,-conf
-         "
     echo ">>>>>> XRDSH_NOAPMON : if set (any value) ApMon components WILL NOT BE USED"
     echo "  XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDSHDIR/run/"
     echo "  XRDCONFDIR : location of system.cnf and XRDCF (default xrootd.xrootd.cf) conf files; if not set it will be XRDSHDIR/xrootd.conf/"
@@ -982,16 +940,3 @@ else
 fi
 }
 
-###########################
-###   BEGIN EXECUTION   ###
-###########################
-
-## Allow loading functions as library
-#  Warns unless SKIPWARN_XRDSH_ASLIB is set
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]] ; then
-    [[ -z "${XRDSH_NOWARN_ASLIB}" ]] && echo "Warning: using xrd.sh as library!"
-    return 0
-fi
-
-check_prerequisites
-xrdsh_main "$@"

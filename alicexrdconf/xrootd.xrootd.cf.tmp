@@ -1,10 +1,11 @@
 ##########################################################
 ## COMMON DEFINITIONS
 # Configuration file syntax
-# http://xrootd.org/doc/dev49/Syntax_config.htm
+# https://xrootd.slac.stanford.edu/doc/dev49/Syntax_config.htm
 
 set myName = SITENAME
 set myRedirector = MANAGERHOST
+set isWritable = writable
 
 set portXRDman = XRDMANAGERPORT
 set portXRDsrv = XRDSERVERPORT
@@ -14,140 +15,131 @@ set portCMSD   = CMSDMANAGERPORT
 ##   COMMON SETTINGS   ##
 
 # DEFAULTS
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916543
+# https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410337
 # explicit set the defaults
 oss.defaults nocheck nodread nomig nomkeep nomlock nommap nopurge norcreate nostage xattrs
 
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911329
-# http://xrootd.org/doc/dev50/xrd_config.htm#_Toc10218114
-all.export / nolock writable
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272884
+all.export / nolock $isWritable
 
 # Specify the way a disk partition is selected for file placement.
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916542
+# https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410336
 oss.alloc 0 0 0
 
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911325
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272870
 all.sitename $myName
 
 # Specify the manager cmsd location.
-# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504652
+# https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611061
 all.manager $myRedirector $portCMSD
 
-# Specify the location of the administrative communications path.
-# for systemd service file it has to be changed to a global, not user linked location
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911313
-# http://xrootd.org/doc/dev50/xrd_config.htm#_Toc10218096
-# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504659
-all.adminpath XRDRUNDIR/admin/
-
-# Specify the location of the xrootd.pid file
-# for systemd service file it has to be removed and the resulting /tmp/<instance name>/ files to be ignored
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911344
-# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504685
-all.pidpath XRDRUNDIR/admin/
-
 # Specify execution tracing options.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911327
-#all.trace all -debug
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272874
+# xrd.trace off
+# https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611104
+# cms.trace -all
+# https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410332
+# ofs.trace -all
 
 # Enable I/O monitoring.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911343
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272899
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
 
 # Configure a protocol that xrd is to use for incoming requests.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911322
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_protocol
 xrd.protocol xrootd *
 
-# Enable window scaling on the monostream connection.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911319
+# Enable HTTP
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272904
+if exec xrootd
+    xrd.protocol http /usr/lib64/libXrdHttp.so
+
+    # Enable third-party-copy
+    http.exthandler xrdtpc /usr/lib64/libXrdHttpTPC.so
+
+    # Pass the bearer token to the Xrootd authorization framework.
+    http.header2cgi Authorization authz
+    http.listingdeny yes
+fi
+
+# Specify network parameters
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272861
 xrd.network buffsz 0 nodnr nokeepalive
 
 # Set timeout parameters for incoming connections
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911326
-xrd.timeout hail 30 kill 10 read 20 idle 60
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272872
+xrd.timeout hail 20 kill 10 read 20 idle 20
 
 # Specify how asynchronous I/O is to be handled.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911332
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272887
 xrootd.async off
-#xrootd.async force limit 8 maxsegs 8 maxstalls 4 maxtot 2048 segsize 64k syncw
+#xrootd.async force limit 8 maxsegs 4 maxstalls 4 maxtot 256 segsize 64k syncw nosf
 
-# Specify how file check sums are computed.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911333
-xrootd.chksum max 2 md5
+# Specify how file check sums are computed; Native checksums are adler32, crc32, and md5
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272888
+xrootd.chksum max 4 md5
 
 # Specify when threads are created, how many can be created, and when they should be destroyed.
-# http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911324
-xrd.sched mint 8 avlt 8 idle 120s maxt 1024
-
-# Enable tracing at the ofs level.
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916538
-# Tracing may severely impact performance because all trace messages require
-# serialization to make sure trace messages are printed in the correct order.
-# Enabling tracing can seriously degrade overall performance. This directive should only be used for debugging purposes.
-ofs.trace -all
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272869
+xrd.sched mint 8 avlt 8 idle 60 maxt 128
 
 # Enable and set third-party-copy (TPC) parameters.
-# http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916536
+# https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410328
 ofs.tpc autorm xfr 20 pgm /usr/bin/xrdcp -f
 
 # Specify how servers are selected for file creation - manager and server
-# http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504670
-cms.space recalc 120 min 50g 30g
+# https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611078
+cms.space recalc 60 min 50g 30g
 
 #########################
 ##   MANAGER SECTION   ##
 #########################
 if $myRedirector
-
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504656
+    # https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611065
     all.role manager
 
-    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911316
+    # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272866
     xrd.port $portXRDman
 
     # Control the keep-alive and load reporting frequency.
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504686
-    cms.ping 30 log 3 usage 10
+    # https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611094
+    cms.ping 15 log 3 usage 20
 
     # Manage processing latency.
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504677
-    cms.delay delnode 20m drop 5m hold 500 lookup 15 overload 5 qdl 15 servers 1 startup 10
+    # https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611085
+    cms.delay delnode 30m drop 120 hold 5000 overload 15 lookup 20 qdl 20 servers 1 startup 10
 
     # Set the time file existence information is to be cached in memory.
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504679
+    # https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611087
     # cms.fxhold 5m 8h
 
     # Specify the parameters for the load balancing scheduling algorithm - manager and supervisor
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504668
-    cms.sched cpu 50 io 50 space 30
+    # https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611076
+    cms.sched cpu 50 io 50 space 80
 
 else
 ########################
 ##   SERVER SECTION   ##
 ########################
-
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504656
     all.role server
-
-    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911316
     xrd.port $portXRDsrv
 
     # Specify how load is computed and reported.
-    # http://xrootd.org/doc/dev410/cms_config.htm#_Toc8247264
+    # https://xrootd.slac.stanford.edu/doc/dev50/cms_config.htm#_Toc53611073
     cms.perf int 20 pgm /usr/share/xrootd/utils/cms_monPerf 5
 
     # Specify how frequently internal statistics are reconciled with actual available space in each disk partition.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916551
-    oss.cachescan 300
+    # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410350
+    oss.spacescan 600
 
     # Auth Section  #
     # Specify the location of the security interface layer. - IS IT NEEDED?
-    # http://xrootd.org/doc/dev48/xrd_config.htm#_Toc496911330
+    # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272885
     xrootd.seclib /usr/lib64/libXrdSec.so
 
     # Define the characteristics of an authentication protocol.
-    # http://xrootd.org/doc/dev49/sec_config.htm#_Toc517294097
-    # http://xrootd.org/doc/dev49/sec_config.htm#_Toc517294122
+    # https://xrootd.slac.stanford.edu/doc/dev50/sec_config.htm#_Toc56021417
+    # https://xrootd.slac.stanford.edu/doc/dev50/sec_config.htm#_Toc56021444
     sec.protocol /usr/lib64 unix
 
     # Enable the access control, acc, component.
@@ -155,20 +147,20 @@ else
     ofs.authorize
 
     # Specify the location of the file system authorization interface layer.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916525
+    # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410311
     ofs.authlib /usr/lib64/ACCLIB
 
     # The funny ALICE name translation, for the global metamanager to aggregate all the clusters
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916555
+    # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410349
     oss.namelib /usr/lib64/libXrdAggregatingName2Name.so LOCALPATHPFX
 
     # The metamanager acts as a virtual stager. Beware, internally xrootd strips the trailing slashes so, no point in adding them here
     # Specify where the local file system name space is actually rooted.
-    # http://xrootd.org/doc/dev49/ofs_config.htm#_Toc522916545
+    # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410339
     oss.localroot LOCALROOT
 
     # Specify the location of a file system that is to be used to hold data files.
-    # http://xrootd.org/doc/dev49/cms_config.htm#_Toc520504671
+    # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410342
     OSSCACHE
 
 fi
@@ -176,11 +168,8 @@ fi
 ## CLI starting of services
 ## !!!   DO NOT REMOVE   !!!
 ## variables used for cutomized start of services
-#@@__XRD_INSTANCE_NAME="test_serv"
-#@@__XRD_LOG="/tmp/test_xrd.log"
-#@@__XRD_PIDFILE="/tmp/xrd.pid"
+#@@__INSTANCE_NAME="test_serv"
+#@@__XRD_LOG="/tmp/xrootd_$(id -u)/xrd.log"
+#@@__CMSD_LOG="/tmp/xrootd_$(id -u)/cmsd.log"
 #@@__XRD_DEBUG=""
-#@@__CMSD_INSTANCE_NAME="test_serv"
-#@@__CMSD_LOG="/tmp/test_cmsd.log"
-#@@__CMSD_PIDFILE="/tmp/cmsd.pid"
 #@@__CMSD_DEBUG=""
