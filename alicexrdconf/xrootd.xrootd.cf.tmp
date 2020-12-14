@@ -69,7 +69,7 @@ xrd.network buffsz 0 nodnr nokeepalive
 
 # Set timeout parameters for incoming connections
 # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272872
-xrd.timeout hail 20 kill 10 read 20 idle 20
+xrd.timeout hail 20 kill 10 read 20 idle 300
 
 # Specify how asynchronous I/O is to be handled.
 # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272887
