@@ -46,10 +46,6 @@ all.manager $myRedirector $portCMSD
 # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272899
 xrootd.monitor all flush 60s window 30s dest files info user MONALISA_HOST:9930
 
-# Configure a protocol that xrd is to use for incoming requests.
-# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_protocol
-xrd.protocol xrootd *
-
 # Enable HTTP
 # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272904
 if exec xrootd
