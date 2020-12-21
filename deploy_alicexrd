@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BRANCH=${1:-master}
+BRANCH=${1:-LEGACY}
 
 GIT_USER="https://raw.githubusercontent.com/adriansev"
 REPO="alicexrd"
@@ -9,7 +9,7 @@ LOCATION="${GIT_USER}/${REPO}"
 
 echo "This script will deploy ALICE XRootD settings for the current user"
 echo "All previous template configs will be overwritten"
-echo -ne "\nSpecify branch/tag; if not used default=master\n>>>>>   ${BRANCH}   <<<<<\n\n"
+echo -ne "\nSpecify branch/tag; if not used, for this invocation of the script the default=LEGACY\n>>>>>   ${BRANCH}   <<<<<\n\n"
 echo "Press ctrl-c for interrupting; waiting 10 seconds :"
 
 for (( i=1 ; i<12 ; i++)) ; do sleep 1 ; echo -ne "." ; done
