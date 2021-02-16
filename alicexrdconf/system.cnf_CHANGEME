@@ -2,13 +2,13 @@
 export SE_NAME="ALICE::CHANGE_ME::SE"
 
 #########################################
-# When setting up xrootd servers, a mandatory practice is to have a localroot
-# directive to hide a part of the local directory prefix.
-# For historical reasons, in the Alice computing model, this task
-# is handled by the central DB (!), and every site exports also its local prefix.
-# This led to the need for the (see above) tricky n2n translation
-# If you are not sure about what to do with this localroot, please ask.
+# The metamanager acts as a virtual stager. Specify where the local file system name space is actually rooted.
+# Especially to be set if multiple volumes (specified below by OSSSPACE) are to be aggregated
 # A typical value for this is something like '/data/disk1/xrdnamespace'
+# N.B. !!! if multiple oss.space definitions AND XRD_MULTISRV is set multiple configuration files will be generated
+# that will each will have an oss.localroot specified by each space (and no other oss.space declaration)
+# N.B. !!! for single volume case, the same apply: oss.localroot set and no oss.space
+
 #########################################
 export LOCALROOT='/CHANGE_ME_FIRST_STORAGE_PARTITION/xrdnamespace'
 
@@ -16,20 +16,11 @@ export LOCALROOT='/CHANGE_ME_FIRST_STORAGE_PARTITION/xrdnamespace'
 # Probably in your data servers you are aggregating several mountpoints into a global namespace.
 # e.g. if your machine can use as raw storage
 #  /data/disk1/xrddata and /data/disk2/xrddata
-#
-# then you have to set up the oss.cache directive, through this variable, in this way:
-# export $OSSCACHE='oss.space public /data/disk1/xrddata\noss.space public /data/disk2/xrddata'
+# then you have to set up the oss.space directives witht the following
+# N.B. !!! specified directories will be listed and existing locations will be used
 #########################################
-export OSSCACHE='oss.space public /CHANGE_ME_1/xrddata\noss.space public /CHANGE_ME_2/xrddata\noss.space public /CHANGE_ME_3/xrddata'
-
-###########################################################################################################################################
-# run without debug
-export XRDDEBUG=""
-
-# run with debug... remember to switch it off in production!!!
-#export XRDDEBUG="-d"
-
-export XRDMAXFD=65000
+export OSS_SPACE_NAME="public"
+export OSS_SPACE_DIRS="/CHANGE_ME_FIRST_storage01 /CHANGE_ME_FIRST_storage02"
 
 ##########################################
 #   Explicit defined ports for services
@@ -38,10 +29,4 @@ export XRDMANAGERPORT=1094
 export CMSDMANAGERPORT=3122
 
 export XRDSERVERPORT=1094
-export CMSDSERVERPORT=3122
 
-#########################################
-# The XrdAcc library which applies the authorization mechanism
-# for ALICE it is libXrdAliceTokenAcc.so (empty string or comment to disable the authz)
-#########################################
-export ACCLIB=libXrdAliceTokenAcc.so

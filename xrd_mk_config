@@ -1,92 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-## formatters
-BOOTUP=color
-RES_COL=60
-MOVE_TO_COL="echo -en \\033[${RES_COL}G"
-SETCOLOR_SUCCESS="echo -en \\033[1;32m"
-SETCOLOR_FAILURE="echo -en \\033[1;31m"
-SETCOLOR_WARNING="echo -en \\033[1;33m"
-SETCOLOR_NORMAL="echo -en \\033[0;39m"
-
+command -v curl &> /dev/null || { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
+command -v bzip2 &> /dev/null || { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
+command -v pgrep &> /dev/null || { echo "pgrep command not found; do : yum -y install procps-ng.x86_64"; exit 1; }
+command -v awk &> /dev/null || { echo "awk command not found; do : yum -y install awk"; exit 1; }
 CURLCMD="/usr/bin/curl --ipv4 -m 1 -fsSLk"
-
-######################################
-check_prerequisites() {
-[ ! -e "/usr/bin/curl" ] && { echo "curl command not found; do : yum -y install curl.x86_64"; exit 1; }
-[ ! -e "/usr/bin/bzip2" ] && { echo "bzip2 command not found (logs compression); do : yum -y install bzip2.x86_64"; exit 1; }
-}
-
-##########  FUNCTIONS   #############
-echo_success() {
-  [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
-  echo -n "[  "
-  [ "$BOOTUP" = "color" ] && $SETCOLOR_SUCCESS
-  echo -n $"OK"
-  [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
-  echo -n "  ]"
-  echo -ne "\\r"
-  return 0
-}
-
-######################################
-echo_failure() {
-  [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
-  echo -n "[  "
-  [ "$BOOTUP" = "color" ] && $SETCOLOR_FAILURE
-  echo -n $"DOWN"
-  [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
-  echo -n "  ]"
-  echo -ne "\\r"
-  return 1
-}
-
-######################################
-echo_passed() {
-  [ "$BOOTUP" = "color" ] && $MOVE_TO_COL
-  echo -n "["
-  [ "$BOOTUP" = "color" ] && $SETCOLOR_WARNING
-  echo -n $"PASSED"
-  [ "$BOOTUP" = "color" ] && $SETCOLOR_NORMAL
-  echo -n "]"
-  echo -ne "\\r"
-  return 0
-}
-
-######################################
-getPidFiles_xrd () {
-ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
-}
-
-######################################
-getPidFiles_cmsd () {
-ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
-}
-
-######################################
-getPidFiles_xrd_instance () {
-[[ -z "${1}" ]] && { echo "getPidFiles_xrd_instance : instance name should be specified"; exit 1; }
-local INSTANCE="${1}"
-ps -o args= $(/usr/bin/pgrep "xrootd") | awk -v NAME="-n ${INSTANCE}" '$0 ~ NAME {for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
-
-}
-
-######################################
-getPidFiles_cmsd_instance () {
-[[ -z "${1}" ]] && { echo "getPidFiles_cmsd_instance : instance name should be specified"; exit 1; }
-local INSTANCE="${1}"
-ps -o args= $(/usr/bin/pgrep "cmsd") | awk -v NAME="-n ${INSTANCE}" '$0 ~ NAME {for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' #'
-}
-
-######################################
-getInstance_xrd () {
-ps -o args= $(/usr/bin/pgrep -x xrootd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}' #'
-}
-
-######################################
-getInstance_cmsd () {
-ps -o args= $(/usr/bin/pgrep -x cmsd) | awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-n") {print $(x+1)} }}' #'
-}
 
 ######################################
 get_name_extension () {
@@ -111,223 +29,9 @@ local VALUE="$3"
 sed --follow-symlinks -i "s#^\#@@\($KEY\s*=\s*\).*\$#\#@@\1\"$VALUE\"#" "${CFGFILE}"
 }
 
-######################################
-startXRDserv_help () {
-echo "This wrapper for starting of _xrootd_ services use the following _required_ variables defined in the configuration"
-echo "__XRD_INSTANCE_NAME= name of the xrootd instance - required"
-echo "__XRD_LOG= xrootd log file - required"
-echo "__XRD_PIDFILE= xrootd pid file - required"
-echo "__XRD_DEBUG= if defined enable debug mode - optional"
-echo "for detailed explanation of arguments taken by xrd and cmsd see:"
-echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
-}
-
-######################################
-startCMSDserv_help () {
-echo "This wrapper for starting of _cmsd_ services use the following _required_ variables defined in the configuration"
-echo "__CMSD_INSTANCE_NAME= name of the cmsd instance - required"
-echo "__CMSD_LOG= cmsd log file - required"
-echo "__CMSD_PIDFILE= cmsd pid file - required"
-echo "__CMSD_DEBUG= if defined enable debug mode - optional"
-echo "for detailed explanation of arguments taken by xrd and cmsd see:"
-echo "http://xrootd.org/doc/dev44/xrd_config.htm#_Toc454222279"
-}
-
-######################################
-startXROOTDprocs () {
-local CFG="$1"
-
-## get __CMSD_ server arguments from config file.
-eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
-
-## make sure that they are defined
-# shellcheck disable=2153
-[[ -z "${__CMSD_INSTANCE_NAME}" || -z "${__CMSD_LOG}" || -z "${__CMSD_PIDFILE}" ]] && { startCMSDserv_help; exit 1; }
-[[ -z "${__XRD_INSTANCE_NAME}"  || -z "${__XRD_LOG}"  || -z "${__XRD_PIDFILE}" ]]  && { startXRDserv_help; exit 1; }
-
-## not matter how is enabled the debug mode means -d
-[[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
-[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
-
-## create the command lines
-[[ -z "{XRDSH_CMD_CMSD}" ]] && XRDSH_CMD_CMSD="/usr/bin/cmsd"
-local CMSD_START="${XRDSH_CMD_CMSD}  -b ${__CMSD_DEBUG} -n ${__CMSD_INSTANCE_NAME} -l ${__CMSD_LOG} -s ${__CMSD_PIDFILE} -c ${CFG}"
-
-[[ -z "{XRDSH_CMD_XRD}" ]] && XRDSH_CMD_XRD="/usr/bin/xrootd"
-local XRD_START="${XRDSH_CMD_XRD} -b ${__XRD_DEBUG}  -n ${__XRD_INSTANCE_NAME}  -l ${__XRD_LOG}  -s ${__XRD_PIDFILE}  -c ${CFG}"
-
-if [[ -n "${XRDSH_PRELOAD}" ]]; then
-  CMSD_START="LD_PRELOAD=${XRDSH_PRELOAD} ${CMSD_START}"
-  XRD_START="LD_PRELOAD=${XRDSH_PRELOAD} ${XRD_START}"
-fi
-
-## make sure that no services with the same instance name are started
-local cmsd_instances
-cmsd_instances="$(getInstance_cmsd)"
-if [[ -z "${cmsd_instances}" ]]; then
-  ${CMSD_START}
-else
-  local is_cmsd_present
-  is_cmsd_present=$(grep "${__CMSD_INSTANCE_NAME}" "${cmsd_instances}")
-  if [[ -n "${is_cmsd_present}" ]]; then
-    echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<";
-  else
-    # if there is no instance name overlap then start it
-    ${CMSD_START}
-  fi
-fi
-
-local xrd_instances
-xrd_instances="$(getInstance_xrd)"
-if [[ -z "${xrd_instances}" ]]; then
-  ${XRD_START}
-else
-  local is_xrd_present
-  is_xrd_present=$(grep "${__XRD_INSTANCE_NAME}" "${xrd_instances}")
-  if [[ -n "${is_xrd_present}" ]]; then
-    echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME! <<<<<<<";
-  else
-    # if there is no instance name overlap then start it
-    ${XRD_START}
-  fi
-fi
-
-}
-
-######################################
-getLocations () {
-# Define system settings
-# Find configs, dirs, xrduser, ...
-
-## find the location of xrd.sh script
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
-  XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
-  SOURCE="$(readlink "${SOURCE}")" ##"
-  [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-done
-
-XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
-export XRDSHDIR
-
-# location of logs, admin, core dirs
-XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}
-export XRDRUNDIR
-/bin/mkdir -p "${XRDRUNDIR}"
-
-# ApMon files
-if [[ -z "${XRDSH_NOAPMON}" ]]; then
-  apmonPidFile="${XRDRUNDIR}/admin/apmon.pid"
-  apmonLogFile="${XRDRUNDIR}/logs/apmon.log"
-
-  export apmonPidFile apmonLogFile
-  /bin/mkdir -p $(/usr/bin/dirname "${apmonPidFile}") $(/usr/bin/dirname "${apmonLogFile}")
-  /bin/touch "${apmonLogFile}"
-fi
-
-# location of configuration files; does not need to be in the same location with xrd.sh
-XRDCONFDIR=${XRDCONFDIR:-${XRDSHDIR}/xrootd.conf/}
-export XRDCONFDIR
-
-## LOCATIONS AND INFORMATIONS
-XRDCONF=${XRDCONF:-${XRDCONFDIR}/system.cnf}
-export XRDCONF
-
-if [[ -e "${XRDCONF}" && -f "${XRDCONF}" ]]; then
-  # shellcheck source=/dev/null
-  source "${XRDCONF}";
-else
-  echo "Could not find main conf file ${XRDCONF}";
-  exit 1;
-fi
-
-## Locations and user settings
-USER=${USER:-$LOGNAME}
-[[ -z "${USER}" ]] && USER=$(/usr/bin/id -nu)
-SCRIPTUSER="${USER}"
-
-## automatically asume that the owner of location of xrd.sh is XRDUSER
-XRDUSER=$(/usr/bin/stat -c %U "${XRDSHDIR}/xrd.sh")
-export XRDUSER
-
-## protect the case when some other user start xrd.sh; make sure the xrd.sh is owned by the user that will run xrootd
-[[ "${SCRIPTUSER}" != "${XRDUSER}" ]] && { echo "User running the xrd.sh and the owner of xrd.sh are different! To protect against problems use the same user as xrd.sh"; exit 1; }
-
-# make sure xrd.sh is executable by user and user group
-/bin/chmod ug+x "${XRDSHDIR}/xrd.sh"
-
-## get the home dir of the designated xrd user
-XRDHOME=$(getent passwd "${XRDUSER}" | awk -F: '{print $(NF-1)}') #'
-[[ -z "${XRDHOME}" ]] && { echo "Fatal: invalid home for user ${XRDUSER}"; exit 1;}
-export XRDHOME
-
-## LACALROOT defined in system.cnf; LOCALPATHPFX defined in MonaLisa
-if [[ ! -e "${LOCALROOT}/${LOCALPATHPFX}" ]]; then
-  echo "LOCALROOT/LOCALPATHPFX : ${LOCALROOT}/${LOCALPATHPFX} not found! Please create it as user: ${XRDUSER}!";
-  exit 1;
-fi
-
-## Treatment of arguments
-local FILE_NAME DIR_NAME EXT ARG1 ARG2
-# default xrootd configuration template
-XRDCF_TMP="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
-
-ARG1="${1}"
-ARG2="${2}"
-
-# if XRD_DONOTRECONF is enabled then if argument is present it should be the XRDCF
-if [[ -n "${XRD_DONOTRECONF}" ]]; then
-  # if there is no explicit XRDCF then juts use the default name without .tmp extension
-  if [[ -z "${ARG1}"  ]]; then
-    DIR_NAME=$(/usr/bin/dirname "${XRDCF_TMP}")
-    FILE_NAME=$(/bin/basename "${XRDCF_TMP}" .tmp)
-    XRDCF="${DIR_NAME}/${FILE_NAME}"
-  else
-    # an argument was passed to getLocations function; we assume that is the name of xrootd configuration file
-    [[ ! -e "${ARG1}" ]] && { echo "getLocations :: XRD_DONOTRECONF enabled :: configuration file >>> ${ARG1} <<< not found!!!"; exit 1; }
-    XRDCF="${ARG1}"
-  fi
-
-  # we reset the default value of XRDCF_TMP to a warning message that should be visible at services start
-  XRDCF_TMP=">>>   XRD_DONOTRECONF enabled   <<< template file not used!"
-  export XRDCF_TMP XRDCF
-  return 0;
-fi
-
-[[ -n "${ARG1}" ]] && XRDCF_TMP="${ARG1}"
-[[ -n "${ARG2}" ]] && XRDCF="${ARG2}"
-
-# check if template file is present - required
-[[ ! -e "${XRDCF_TMP}" ]] && { echo "not found template file - ${XRDCF_TMP} "; exit 1; }
-
-# if configuration file is not specified (ARG2) then remove the tmp extension from template and use that name
-# even if no ARG1 is given the same procedure must be done for the default XRDCF_TMP
-if [[ -z "${ARG2}" ]]; then
-  FILE_NAME=$(/bin/basename "${XRDCF_TMP}")
-  DIR_NAME=$(/usr/bin/dirname "${XRDCF_TMP}")
-
-  EXT="${XRDCF_TMP##*.}"
-  [[ "${EXT}" != "tmp" ]] && { echo "template file should have .tmp extension"; exit 1; }
-
-  FILE_NAME=$(/bin/basename "${XRDCF_TMP}" .tmp)
-  XRDCF="${DIR_NAME}/${FILE_NAME}"
-fi
-
-export XRDCF_TMP XRDCF
-
-# core file size (blocks, -c); legacy directive
-#ulimit -c unlimited
-}
-
+monalisa_info () {
 ######################################
 ##  Get all relevant server information from MonaLisa
-serverinfo () {
-# if we are called by mistake (when XRD_DONOTRECONF is enabled) then just return
-[[ -n "${XRD_DONOTRECONF}" ]] && return 0;
-
-# if XRDCONF is not set (by getLocations) we must run it passing the serverinfo args to getLocations
-# this is needed for customization of template and final xrootd configuration file
-getLocations "$@"
 
 # links to alimonitor to query about info
 local ALIMON_SE_URL ALIMON_IP_URL
@@ -339,25 +43,23 @@ ALIMON_IP_URL="http://alimonitor.cern.ch/services/ip.jsp"
 
 ## Get SE info from MonaLisa and check if the SE name is valid; try 3 times before fail and exit
 local SE_INFO
-
 SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";)
 [[ -z "${SE_INFO}" ]] && { sleep 1; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
 [[ -z "${SE_INFO}" ]] && { sleep 2; SE_INFO=$(eval "${CURLCMD}" "${ALIMON_SE_URL}";); }
 [[ "${SE_INFO}" == "null" ]] || [[ -z "${SE_INFO}" ]] && { echo "The stated SE name ${SE_NAME} is not found - either bad conectivity or wrong SE name"; exit 1; }
 
-[[ -n "${XRDSH_DEBUG}" ]] && echo "Found SE_NAME=${SE_NAME}"
+[[ -n "${XRDCTL_DEBUG}" ]] && echo -e "${SE_INFO}\n\nFound SE_NAME=${SE_NAME}"
 
 ## Find information about site from ML
 MONALISA_HOST=$(/bin/awk -F": " '/MLSERVICE_/ {print $2}' <<< "${SE_INFO}" | head -n1) #'
 
 ## Validate the ip - make sure is a public one and the reverse match the defined hostname
-# get my ip
 local MYNET MYIP REVERSE
-
 MYNET=$(eval "${CURLCMD}" "${ALIMON_IP_URL}")
 [[ -z "${MYNET}" ]] && { sleep 1; MYNET=$(eval "${CURLCMD}" "${ALIMON_IP_URL}"); }
 [[ -z "${MYNET}" ]] && { sleep 2; MYNET=$(eval "${CURLCMD}" "${ALIMON_IP_URL}"); }
 [[ -z "${MYNET}" ]] && { echo "MYNET not found, maybe bad connectivity to alimonitor?" && exit 1; }
+[[ -n "${XRDCTL_DEBUG}" ]] && echo -e "${MYNET}\n"
 
 ## Network information and validity checking
 MYIP=$(/bin/awk '/IP/ {gsub("IP:","",$1); print $1;}'  <<< "${MYNET}") #'
@@ -377,157 +79,37 @@ MYHNAME=$(/bin/hostname -f)
 
 ## make sure the locally configured hostname is the same with the external one
 [[ "${MYHNAME}" != "${REVERSE}" ]] && { echo "detected hostname ${MYHNAME} does not corespond to reverse dns name ${REVERSE}"; exit 1; }
-[[ -n "${XRDSH_DEBUG}" ]] && echo "The FQDN appears to be : ${MYHNAME}"
+[[ -n "${XRDCTL_DEBUG}" ]] && echo "The FQDN appears to be : ${MYHNAME}"
 
 ## XROOTD Manager info
-MANAGER_HOST_PORT=$( /bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${SE_INFO}" ) #'
+local MANAGER_HOST_PORT
+MANAGER_HOST_PORT=$(/usr/bin/awk -F": " '/seioDaemons/ { gsub ("root://","",$2); print $2 }' <<< "${SE_INFO}" ) #'
 IFS=':' read -r -a mgr_host_port_arr <<< "${MANAGER_HOST_PORT}"
 MANAGERHOST="${mgr_host_port_arr[0]}"
-#MANAGERPORT="${mgr_host_port_arr[1]}"
-
-LOCALPATHPFX=$(/bin/awk -F": " '/seStoragePath/ {print $2;}'  <<< "${SE_INFO}" ) #'
+MANAGERPORT="${mgr_host_port_arr[1]}"
+LOCALPATHPFX=$(/usr/bin/awk -F": " '/seStoragePath/ {print $2;}'  <<< "${SE_INFO}" ) #'
 
 ###############################################################################################
 ## WHAT IS MY ROLE?
 # Default assumption
-is_manager="0"
 ROLE="server"
 
+# ipv6 logic; we don't use it as storage have to be dual stack
 # ipv4 ips recorded to the manager fqdn
-local DNS_QUERY_IPv4 MANAGER_IP_LIST
+local DNS_QUERY_IPv4 MANAGER_IP_LIST MANAGER_IPv4_LIST MANAGER_HOST_LIST
 DNS_QUERY_IPv4=$(host -t A "${MANAGERHOST}")
 [[ "${DNS_QUERY_IPv4}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv4}" =~ NXDOMAIN ]] && DNS_QUERY_IPv4=""
-MANAGER_IP_LIST=$(/bin/awk '{print $NF;}' <<< "${DNS_QUERY_IPv4}") #'
+[[ -n "${DNS_QUERY_IPv4}" ]] && MANAGER_IPv4_LIST=$(/usr/bin/awk '{print $NF;}' <<< "${DNS_QUERY_IPv4}") #'
+MANAGER_HOST_LIST=$(for mgr in ${MANAGER_IPv4_LIST}; do host ${mgr} |/usr/bin/awk '{gsub(".$","",$NF); print $NF;}';done | sort -u)
 
-# ipv6 logic; we don't use it as storage have to be dual stack
-# ipv6 ips recorded to the manager fqdn
-# local DNS_QUERY_IPv6 MANAGER_IPv6_LIST
-# DNS_QUERY_IPv6=$(host -t AAAA ${MANAGERHOST})
-# [[ "${DNS_QUERY_IPv6}" =~ no.+record ]] || [[ "${DNS_QUERY_IPv6}" =~ NXDOMAIN ]] && DNS_QUERY_IPv6=""
-# MANAGER_IPv6_LIST=$(/bin/awk '{print $NF;}'  <<< "${DNS_QUERY_IPv6}") #'
-
+MANAGER_IP_LIST=$(host "${MANAGERHOST}"| /usr/bin/awk '{print $NF;}')
 #is my ip in manager ip list; so far we check only for ipv4 as storage have to be dual-stack anyway
-[[ "${MANAGER_IP_LIST}" =~ ${MYIP} ]] && { is_manager="1"; ROLE="manager"; }
+[[ "${MANAGER_IP_LIST}" =~ ${MYIP} ]] && ROLE="manager";
 
-## if MANGERHOST fqdn is an alias then register servers to all ips
-MANAGER_ALIAS=$(echo "${MANAGER_IP_LIST}" | /usr/bin/wc -l)
+# if MANGERHOST fqdn is an alias then register servers to all ips ## to be redone
+MANAGER_IS_ALIAS=$(echo "${MANAGER_HOST_LIST}" | /usr/bin/wc -l)
 
-## instance name can be something else; to be used when starting multiple servers, but we are not doing this
-[[ "${is_manager}" -eq "1" ]] && INSTANCE_NAME="manager" || INSTANCE_NAME="server"
-
-export MONALISA_HOST MANAGERHOST LOCALPATHPFX ROLE INSTANCE_NAME MANAGER_ALIAS
-
-}
-
-######################################
-set_system () {
-# if we are called by mistake (when XRD_DONOTRECONF is enabled) then just return
-[[ -n "${XRD_DONOTRECONF}" ]] && return 0;
-
-# Get all upstream server info (after first source of system.cnf);
-# it will get also the locations of configurations and scripts
-
-# we must pass the set_system args to serverinfo
-# this is needed for customization of template and final xrootd configuration file
-serverinfo "$@"
-
-#######################
-## Customize XRDCF file
-#######################
-if [[ -n "${XRDSH_DEBUG}" ]]; then
-  echo "XRDSH dir is : ${XRDSHDIR}"
-  echo "XRDCONFDIR is : ${XRDCONFDIR}"
-  echo "XRDCF_TMP file is : ${XRDCF_TMP}"
-  echo "XRDCF file is : ${XRDCF}"
-fi
-
-cp -f "${XRDCF_TMP}" "${XRDCF}"
-
-## if set in system.cnf set the debug value in configuration file
-if [[ -n "${XRDDEBUG}" ]]; then
-    cfg_set_xrdvalue "${XRDCF}"  __XRD_DEBUG yes
-    cfg_set_xrdvalue "${XRDCF}" __CMSD_DEBUG yes
-fi
-
-## set the instance name for both processes xrootd and cmsd
-cfg_set_xrdvalue "${XRDCF}"  __XRD_INSTANCE_NAME "${INSTANCE_NAME}"
-cfg_set_xrdvalue "${XRDCF}" __CMSD_INSTANCE_NAME "${INSTANCE_NAME}"
-
-## set the xrootd and cmsd log file
-## set "=" in front for disabling automatic fencing -- DO NOT USE YET BECAUSE OF servMon.sh
-local XRD_LOG CMSD_LOG XRD_PIDFILE CMSD_PIDFILE
-
-XRD_LOG="${XRDRUNDIR}/logs/xrdlog"
-CMSD_LOG="${XRDRUNDIR}/logs/cmslog"
-cfg_set_xrdvalue "${XRDCF}"  __XRD_LOG "${XRD_LOG}"
-cfg_set_xrdvalue "${XRDCF}" __CMSD_LOG "${CMSD_LOG}"
-
-## set the xrootd and cmsd PID file
-XRD_PIDFILE="${XRDRUNDIR}/admin/xrd_${INSTANCE_NAME}.pid"
-CMSD_PIDFILE="${XRDRUNDIR}/admin/cmsd_${INSTANCE_NAME}.pid"
-cfg_set_xrdvalue "${XRDCF}"  __XRD_PIDFILE "${XRD_PIDFILE}"
-cfg_set_xrdvalue "${XRDCF}" __CMSD_PIDFILE "${CMSD_PIDFILE}"
-
-## Subscribe to all redirector ips and use load-balancing mode
-## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
-(( IS_MANAGER_ALIAS > 1 )) && sed --follow-symlinks -i '/all\.manager/s/.*/all.manager all $myRedirector+ $portCMSD/' "${XRDCF}"
-
-# Set readonly if set up in the environment
-[[ -n "${XRDREADONLY}" ]] && sed --follow-symlinks -i '/all.export/s/writable/notwritable/' "${XRDCF}";
-
-sed --follow-symlinks -i "
-s#SITENAME#${SE_NAME}#g;
-s#MANAGERHOST#${MANAGERHOST}#g;
-s#LOCALPATHPFX#${LOCALPATHPFX}#g;
-s#LOCALROOT#${LOCALROOT}#g;
-s#XRDSERVERPORT#${XRDSERVERPORT}#g;
-s#XRDMANAGERPORT#${XRDMANAGERPORT}#g;
-s#CMSDSERVERPORT#${CMSDSERVERPORT}#g;
-s#CMSDMANAGERPORT#${CMSDMANAGERPORT}#g;
-s#ACCLIB#${ACCLIB}#g;
-s#MONALISA_HOST#${MONALISA_HOST}#g;
-s#XRDRUNDIR#${XRDRUNDIR}#g;
-" "${XRDCF}";
-
-# Configure the threads scheduling for xrootd
-# we allow xrootd to use up to 90% of maximum number of threads allowed to user
-local XRD_MAX_PROCS
-XRD_MAX_PROCS=$(/usr/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
-# we compute the number of idle threads waiting for connections as the number of logical cores found
-local XRD_IDLE_THREADS
-XRD_IDLE_THREADS=$(grep -c '^processor' /proc/cpuinfo)
-
-# now use these info in the configuration file; we set unsed threads cleaning time to 60s
-sed --follow-symlinks -i "/xrd.sched/s/.*/    xrd.sched mint 32 idle 60 avlt ${XRD_IDLE_THREADS} maxt ${XRD_MAX_PROCS}/" "${XRDCF}";
-
-# write storage partitions; convert the /n to actual CRs and then pass that variable to perl; (otherwise it needs to be exported)
-SPACE=$(echo -e "${OSSCACHE}") perl -pi -e 's/OSSCACHE/$ENV{SPACE}/g;' "${XRDCF}";
-
-}
-
-######################################
-## create TkAuthz.Authorization file; take as argument the place where are the public keys
-create_tkauthz() {
-  local PRIV_KEY_DIR; PRIV_KEY_DIR=$1
-  local TK_FILE="${PRIV_KEY_DIR}/TkAuthz.Authorization"
-
-  (
-  #########################################
-  # the root of the exported namespace you allow to export on your disk servers
-  # just add all directories you want to allow this is only taken into account if you use the TokenAuthzOfs OFS
-  # Of course, the localroot prefix here should be omitted
-  # If the cluster is (correctly!) configured with the right
-  # localroot option, allowing / is just fine and 100% secure. That should be considered normal.
-  echo 'EXPORT PATH:/ VO:*     ACCESS:ALLOW CERT:*'
-
-  # rules, which define which paths need authorization; leave it like that, that is safe
-  echo 'RULE PATH:/ AUTHZ:delete|read|write|write-once| NOAUTHZ:| VO:*| CERT:IGNORE'
-
-  echo "KEY VO:* PRIVKEY:${PRIV_KEY_DIR}/privkey.pem PUBKEY:${PRIV_KEY_DIR}/pubkey.pem"
-
-  ) > "${TK_FILE}"
-
-  /bin/chmod 600 "${TK_FILE}"
+export MONALISA_HOST MANAGERHOST MANAGERPORT LOCALPATHPFX ROLE MANAGER_IS_ALIAS
 }
 
 ######################################
@@ -558,38 +140,10 @@ checkkeys() {
 }
 
 ######################################
-removecron() {
-  local cron_file="/tmp/cron.$RANDOM.xrd.sh";
-  /usr/bin/crontab -l | sed '/\s*#.*/! { /xrd\.sh/ d}' > ${cron_file}; # get current crontab and delete uncommented xrd.sh lines
-  /usr/bin/crontab ${cron_file}; # put back the cron without xrd.sh
-  /bin/rm -f ${cron_file};
-}
-
-######################################
-addcron() {
-  getLocations
-  removecron # clean up the old xrd.sh cron line
-  cron_file="/tmp/cron.${RANDOM}.xrd.sh";
-  /usr/bin/crontab -l > "${cron_file}"; # get current crontab
-
-  ## add to cron_file the xrd.sh command
-  echo -ne "\
-*/5 * * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n
-0   3 * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -logs >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n
-@reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrd.sh -c    >> ${XRDRUNDIR}/logs/xrd.watchdog.log 2>&1\\n" >> ${cron_file}
-
-  /usr/bin/crontab "${cron_file}"; # put back the cron with xrd.sh
-  /usr/bin/crontab -l | /usr/bin/sed '/^$/d;s/[[:blank:]]//g' | /usr/bin/crontab # clean up any whitespaces
-  /bin/rm -f "${cron_file}";
-}
-
-######################################
 create_limits_conf () {
-
-local FILE="99-xrootd_limits.conf"
-
+local FILE
+FILE="99-xrootd_limits.conf"
 echo "The generated file ${FILE} should be placed in /etc/security/limits.d/"
-
 cat > ${FILE} <<EOF
 ${USER}         hard    nofile          65536
 ${USER}         soft    nofile          65536
@@ -601,66 +155,11 @@ EOF
 
 echo "Generated file is ${FILE} with content :"
 cat ${FILE}
-
 echo "try : sudo cp ${FILE} /etc/security/limits.d/"
 }
 
 ######################################
-handlelogs() {
-  getLocations
-  cd "${XRDRUNDIR}" || { echo "XRDRUNDIR not found"; return 1; }
-  /bin/mkdir -p "${XRDRUNDIR}/logsbackup"
-  local LOCK
-  LOCK="${XRDRUNDIR}/logs/HANDLELOGS.lock"
-  #local todaynow=$(date +%Y%m%d_%k%M%S)
-
-  cd "${XRDRUNDIR}/logs" || { echo "XRDRUNDIR/logs not found"; return 1; }
-  not_compressed=$(/bin/find . -type f -not -name '*.lock' -not -name '*.bz2' -not -name 'stage_log' -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
-
-  if [[ ! -f "${LOCK}" ]]; then
-    touch "${LOCK}"
-    for log in ${not_compressed}; do /usr/bin/bzip2 -9fq "${log}"; done
-    /bin/rm -f "${LOCK}"
-  fi
-
-  # move compressed to logs backup
-  find "${XRDRUNDIR}/logs/" -type f -name "*log.*.bz2" -exec mv '{}' "${XRDRUNDIR}/logsbackup/" \; &> /dev/null
-}
-
-######################################
-execEnvironment() {
-    /bin/mkdir -p "${XRDRUNDIR}/logs/" "${XRDRUNDIR}/admin/" "${XRDRUNDIR}/core/${USER}_${1}"
-    /bin/chmod -R 755 "${XRDRUNDIR}/logs" "${XRDRUNDIR}/admin" "${XRDRUNDIR}/core"
-
-    /bin/chown -R "${XRDUSER}" "${XRDRUNDIR}/core" "${XRDRUNDIR}/logs" "${XRDRUNDIR}/admin"
-
-    ULIM_OPENF=$(ulimit -n)
-    ULIM_USR_PROC=$(ulimit -u)
-
-    ulimit -n "${XRDMAXFD}"
-
-    if (( ULIM_OPENF < XRDMAXFD )) ; then
-      echo "Fatal: This machine does not allow more than ${XRDMAXFD} file descriptors. At least 65000 are needed for serious operation"
-      echo "use xrd.sh -limits for generating the limits file"
-      exit -1
-    fi
-
-    if (( ULIM_USR_PROC < 512 )); then
-        echo "This machine does not allow more than ${ULIM_USR_PROC} user processes."
-        echo "create a .conf file in /etc/security/limits.d/ with needed settings"
-        echo "use xrd.sh -limits for generating the limits file"
-    fi
-
-}
-
-######################################
 generate_systemd () {
-  if [[ -n "${XRD_DONOTRECONF}" ]]; then
-    getLocations "$@"
-  else
-    set_system "$@"
-  fi
-
 # get information from the configuration file ${XRDCF}
 eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
 [[ -z "${INSTANCE_NAME}"  ]] && local INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
@@ -744,199 +243,120 @@ systemctl status xrootd@${INSTANCE_NAME}.service
 "
 }
 
-######################################
-killXRD() {
-  if [[ -n "${XRD_DONOTRECONF}" ]]; then
-    getLocations "$@"
-    eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
-    INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
-    MONALISA_HOST=$(awk '/xrootd.monitor/ {split ($NF,fqdn,":"); print fqdn[1];}' ${XRDCF})  #'
-  else
-    set_system "$@"
-  fi
+################################################################################################################
+### START OF MAIN CODEPATH
+## find the location of xrdctl script
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
+    XRDCTLDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
+    SOURCE="$(readlink "${SOURCE}")" ##"
+    [[ "${SOURCE}" != /* ]] && SOURCE="${XRDCTLDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+XRDCTLDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
+XRDRUNDIR=${XRDRUNDIR:-${XRDCTLDIR}/run/}  # location of logs, admin, core dirs
+XRDCONFDIR=${XRDCONFDIR:-${XRDCTLDIR}/xrootd.conf/}  # location of configuration file(s)
+mkdir -p "${XRDRUNDIR}" "${XRDCONFDIR}"
 
-  echo -n "Stopping xrootd/cmsd: "
-  local XRDSHUSER xrd_procs
-  XRDSHUSER=$(id -nu)
-
-  xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-  [[ -n "${xrd_procs}" ]] && /usr/bin/pkill -u "${XRDSHUSER}" "xrootd|cmsd"
-
-  xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-  [[ -n "${xrd_procs}" ]] && { /bin/sleep 2; /usr/bin/pkill -9 -u "${XRDSHUSER}" "xrootd|cmsd"; }
-
-  xrd_procs=$(/usr/bin/pgrep -u "${XRDSHUSER}" "cmsd|xrootd")
-  [[ -z "${xrd_procs}" ]] && echo_success || echo_failure
-  echo
-
-  MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) { if ($x == "pgm") {print $(x+1)} }}' ${XRDCF} ) #'
-  [[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename ${MON_PERF})
-
-  # clean up service files and sockets
-  [[ -e "${XRDRUNDIR}/admin/" ]] && rm -rf ${XRDRUNDIR}/admin/*
-
-  CMSPERF=$(awk '/cms\.perf/ {print $(NF-1)}' ${XRDCF}) #'
-  /usr/bin/pkill -9 -f -u "${XRDSHUSER}" ${CMSPERF}
-
-  if [[ -z "${XRDSH_NOAPMON}" ]]; then
-    local se apmon_pidfiles
-    [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
-
-    echo -n "Stopping ApMon:";
-    /usr/sbin/servMon.sh -p "${apmonPidFile}" "${se}xrootd" -k;
-    /usr/bin/pkill -f -u "${XRDSHUSER}" mpxstats;
-
-    apmon_pidfiles=$(/bin/find $(/usr/bin/dirname "${apmonPidFile}") -name $(/bin/basename "${apmonPidFile}")*  2>/dev/null)
-    for pidf in ${apmon_pidfiles}; do kill $(< "${pidff}") 2>/dev/null; done
-
-    [[ -n "${apmon_pidfiles}" ]] && /bin/rm -rf -- "${apmon_pidfiles}"
-    echo;
-  fi
-}
-
-######################################
-checkstate () {
-# make sure that checkstate report on the servers/instance name of the configuration not on all prezent servers
-if [[ -n "${XRD_DONOTRECONF}" ]]; then
-  getLocations "$@"
-  eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
-  INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
-  MONALISA_HOST=$(awk '/xrootd.monitor/ {split ($NF,fqdn,":"); print fqdn[1];}' ${XRDCF})  #'
+if [[ -n "${1}" ]]; then
+    XRDCF_TMP="$(realpath -e ${1})"
+    shift
 else
-  set_system "$@"
+    XRDCF_TMP="${XRDCONFDIR}/xrootd.xrootd.cf.tmp"
+fi
+[[ ! -e "${XRDCF_TMP}" ]] && { echo "Infered template conf file ${XRDCF_TMP} not found"; exit 1; }
+
+SYSCNF="$(dirname $(realpath -e ${XRDCF_TMP}))/system.cnf" # main steering configuration file
+[[ ! -e "${SYSCNF}" ]] && { echo "${SYSCNF} not found"; exit 1; }
+source "${SYSCNF}"
+
+if [[ -n "${XRDCTL_DEBUG}" ]]; then
+  echo "XRDCTL dir is : ${XRDCTLDIR}"
+  echo "XRDCONFDIR is : ${XRDCONFDIR}"
+  echo "XRDCF_TMP file is : ${XRDCF_TMP}"
 fi
 
-execEnvironment "${INSTANCE_NAME}" || exit
-echo "******************************************"
-date
-echo "******************************************"
+# array of defined oss.space partition
+declare -a OSS_SPACE_LIST
+for SPACE in $(ls -1d ${OSS_SPACE_DIRS} 2>/dev/null | sort -u); do
+    [[ ! -w "${SPACE}" ]] && echo "${SPACE} have no write permission for the current user ($(id -nu))"
+    OSS_SPACE_LIST+=("${SPACE}");
+done
+NR_SPACES="${#OSS_SPACE_LIST[@]}"
+(( "${NR_SPACES}" < "1" )) && { echo "No OSS_SPACE_DIRS found in the declaration: ${OSS_SPACE_DIRS}"; exit 1; }
 
-local stateval=0
-
-# lets treat each service individually
-# CMSD
-local pidfile_cmsd
-pidfile_cmsd=$(getPidFiles_cmsd_instance "${INSTANCE_NAME}")
-if [[ -z "${pidfile_cmsd}" ]]; then
-  echo -n "CMSD pid file for instance >${INSTANCE_NAME}< not found"; echo_failure; echo; stateval=1;
-else
-  local cmsd_pid cmsd_rss
-  cmsd_pid=$(<"${pidfile_cmsd}")
-  cmsd_rss=$(grep VmRSS /proc/"${cmsd_pid}"/status 2>/dev/null)
-  if [[ -z "${cmsd_rss}" ]]; then
-    echo -ne "CMSD pid file for >${INSTANCE_NAME}< found BUT no valid pid!!!"; echo_failure; echo; stateval=1;
-  else
-    echo -ne "CMSD pid :\t${cmsd_pid}\t${cmsd_rss}"; echo_success; echo
-  fi
-fi
-
-# XROOTD
-local pidfile_xrd
-pidfile_xrd=$(getPidFiles_xrd_instance "${INSTANCE_NAME}")
-if [[ -z "${pidfile_xrd}" ]]; then
-  echo -n "XROOTD pid file for instance >${INSTANCE_NAME}< not found"; echo_failure; echo; stateval=1;
-else
-  local xrd_pid xrd_rss
-  xrd_pid=$(<"${pidfile_xrd}")
-  xrd_rss=$(grep VmRSS /proc/"${xrd_pid}"/status 2>/dev/null)
-  if [[ -z "${xrd_rss}" ]]; then
-    echo -ne "XROOTD pid file for >${INSTANCE_NAME}< found BUT no valid pid!!!"; echo_failure; echo; stateval=1;
-  else
-    echo -ne "XROOTD pid :\t${xrd_pid}\t${xrd_rss}"; echo_success; echo
-  fi
-fi
-
-# is apmon is enabled
-if [[ -z "${XRDSH_NOAPMON}" ]]; then
-    # find pid file of apmon
-    local is_apmon_pid
-    is_apmon_pid=$(/bin/find $(/usr/bin/dirname "${apmonPidFile}") -name $(/bin/basename "${apmonPidFile}")*  2>/dev/null | /usr/bin/wc -l)
-    if (( is_apmon_pid > 0 )) ; then
-      echo -n "apmon:"; echo_success; echo;
-    else
-      echo -n "apmon:"; echo_failure; echo; stateval=1;
-    fi
-fi
-
-return "${stateval}"
-}
-
-######################################
-startMon () {
-  [[ -z "${MONALISA_HOST}" ]] && return 1;
-
-  local se pid srvToMon servmon_cmd
-  [[ -n "${SE_NAME}" ]] && se="${SE_NAME}_" || return 1;
-
-  srvToMon=""
-  for typ in manager server ; do
-    for srv in xrootd cmsd ; do
-      pid=$(/usr/bin/pgrep -f -U "$USER" "$srv .*$typ" | head -1)
-      [[ -n "${pid}" ]] && srvToMon="${srvToMon} ${se}${typ}_${srv} ${pid}"
+# establish the configuration files to be acted upon
+declare -a CONF_LIST  # container for configuration file(s)
+if [[ -n ${XRD_MULTISRV} ]]; then
+    for DIR in "${OSS_SPACE_LIST[@]}"; do
+        CONF_LIST+=("${XRDCONFDIR}/$(sed 's#^/##;s#/#_#;s#_$##' <<< ${DIR}).xrdcfg");
     done
-  done
-
-  servmon_cmd="/usr/sbin/servMon.sh -f -p ${apmonPidFile} ${se}xrootd ${srvToMon}"
-  echo -n "Starting ApMon [${srvToMon}] ..."
-  eval "${servmon_cmd}"
-  echo_passed
-  echo
-}
-
-######################################
-startSERVICES () {
-  if [[ -n "${XRD_DONOTRECONF}" ]]; then
-    getLocations "$@"
-    eval "$(sed -ne 's/\#@@/local /gp;' ${XRDCF})"
-    INSTANCE_NAME="${__XRD_INSTANCE_NAME}"
-    MONALISA_HOST=$(awk '/xrootd.monitor/ {split ($NF,fqdn,":"); print fqdn[1];}' ${XRDCF})  #'
-  else
-    set_system "$@"
-  fi
-
-  execEnvironment "${INSTANCE_NAME}" || exit
-
-  ## STARTING SERVICES WITH THE CUSTOMIZED CONFIGURATION
-  echo "Starting cmsd+xrootd [${INSTANCE_NAME}]: "
-  startXROOTDprocs "${XRDCF}"
-  [[ -z "${XRDSH_NOAPMON}" ]] && { sleep 1; startMon; sleep 1; }
-}
-
-######################################
-restartXRD () {
-    killXRD "$@"
-    startSERVICES "$@"
-}
-
-######################
-##    Main logic    ##
-######################
-xrdsh_main() {
-if [[ "$1" == "-conf" ]]; then  ## create configuration
-    shift
-    set_system "$@"
-elif [[ "$1" == "-systemd" ]]; then  ## create configuration
-    shift
-    generate_systemd "$@"
-elif [[ "$1" == "-getkeys" ]]; then  ## download keys and create TkAuthz.Authorization file
-    checkkeys
-elif [[ "$1" == "-limits" ]]; then  ## generate limits file
-    create_limits_conf
 else
-    echo "usage: ${0} arg";
-    echo "where argument is _one_ of :"
-    echo " [-conf] just (re)create configuration; optional args : <configuration_template> <xrootd_configuration>";
-    echo " [-getkeys] just get keys";
-    echo " [-addcron] add/refresh cron line";
-    echo " [-limits] generate limits file";
-    echo " [-systemd] generate systemd services files";
-    echo "";
-    echo "Environment variables:";
-    echo ">>>>>> XRDSH_NOAPMON : if set (any value) ApMon components WILL NOT BE USED"
-    echo "  XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDSHDIR/run/"
-    echo "  XRDCONFDIR : location of system.cnf and XRDCF (default xrootd.xrootd.cf) conf files; if not set it will be XRDSHDIR/xrootd.conf/"
-    echo "  XRDCONF : main configuration file - usually (default) named system.cnf; if not set it will have the value of XRDCONFDIR/system.cnf"
-    echo "  XRDSH_DEBUG : if set (any value) it will enable various printouts of srd.sh"
+    # single server, let's have a clear hostname based name
+    CONF_LIST+=("${XRDCONFDIR}/$(hostname -s).xrdcfg");
 fi
-}
+
+# clean up all previous .xrdcfg files
+rm -f ${XRDCONFDIR}/*.xrdcfg
+
+# let's query monalisa for info
+monalisa_info
+
+for i in "${!CONF_LIST[@]}"; do
+    CFG="${CONF_LIST[i]}"
+    cp "${XRDCF_TMP}" "${CFG}"
+
+    INSTANCE_NAME=$(basename "${CFG}" .xrdcfg)
+
+    ## set the instance name for both processes xrootd and cmsd
+    cfg_set_xrdvalue "${CFG}"  __INSTANCE_NAME "${INSTANCE_NAME}"
+
+    ## set the xrootd and cmsd log file
+    cfg_set_xrdvalue "${CFG}"  __XRD_LOG "${XRDRUNDIR}/logs/xrdlog"
+    cfg_set_xrdvalue "${CFG}" __CMSD_LOG "${XRDRUNDIR}/logs/cmslog"
+
+    ## Subscribe to all redirector ips and use load-balancing mode
+    ## see http://xrootd.org/doc/dev49/cms_config.htm#_Toc506069400
+    (( MANAGER_IS_ALIAS > 1 )) && sed --follow-symlinks -i '/all\.manager/s/.*/all.manager all $myRedirector+ $portCMSD/' "${CFG}"
+
+    sed --follow-symlinks -i "
+    s#SITENAME#${SE_NAME}#g;
+    s#MANAGERHOST#${MANAGERHOST}#g;
+    s#XRDMANAGERPORT#${XRDMANAGERPORT}#g;
+    s#CMSDMANAGERPORT#${CMSDMANAGERPORT}#g;
+    s#LOCALPATHPFX#${LOCALPATHPFX}#g;
+    s#MONALISA_HOST#${MONALISA_HOST}#g;
+    " "${CFG}";
+
+    # Configure the threads scheduling for xrootd
+    # we allow xrootd to use up to 90% of maximum number of threads allowed to user
+    # XRD_MAX_PROCS=$(/usr/bin/bc -l <<< "scale=0; ($(ulimit -u) * 0.9)/1" ) #"
+    # let's use a hard relativly small number; in my case the IOWait load will increase to this number for many concurent requests
+    XRD_MAX_PROCS="128"
+
+    # we compute the number of idle threads waiting for connections as the number of logical cores found
+    XRD_IDLE_THREADS=$(grep -c '^processor' /proc/cpuinfo)
+
+    # now use these info in the configuration file; we set unsed threads cleaning time to 60s
+    sed --follow-symlinks -i "/xrd.sched/s/.*/xrd.sched mint 16 idle 60 avlt ${XRD_IDLE_THREADS} maxt ${XRD_MAX_PROCS}/" "${CFG}";
+
+    if [[ -n ${XRD_MULTISRV} || "${NR_SPACES}" -lt "2" ]]; then
+        sed --follow-symlinks -i "
+        s#LOCALROOT#${OSS_SPACE_LIST[i]}#g;
+        s/^[[:space:]]*OSS_SPACE/## OSS_SPACE/g;
+        " "${CFG}";
+        # configure server port
+        XRDSERVERPORT_MULTISRV=$(( XRDSERVERPORT + i))
+        sed --follow-symlinks -i "s#XRDSERVERPORT#${XRDSERVERPORT_MULTISRV}#g;" "${CFG}";
+    else
+        sed --follow-symlinks -i "
+        s#XRDSERVERPORT#${XRDSERVERPORT}#g;
+        s#LOCALROOT#${LOCALROOT}#g;
+        " "${CFG}";
+        OSS_SPACE_TXT=""
+        for DIR in "${OSS_SPACE_LIST[@]}"; do
+            [[ -n "${OSS_SPACE_TXT}" ]] && OSS_SPACE_TXT="${OSS_SPACE_TXT}\noss.space ${OSS_SPACE_NAME} ${DIR}" || OSS_SPACE_TXT="oss.space ${OSS_SPACE_NAME} ${DIR}"
+        done
+        sed --follow-symlinks -i "s#OSS_SPACE#${OSS_SPACE_TXT}#g;" "${CFG}";
+    fi
+done
 

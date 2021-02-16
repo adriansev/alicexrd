@@ -1,1 +1,0 @@
-bash <(curl -fsSLk https://raw.githubusercontent.com/adriansev/alicexrd/master/deploy_mlsensor)

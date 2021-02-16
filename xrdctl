@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+[[ -n "${XRDCTL_DEBUG_SETX}" ]] && set -x 
+
 if test -t 1; then
     ncolors=$(tput colors)
     if test -n "${ncolors}" && test "${ncolors}" -ge 8; then
@@ -9,6 +11,7 @@ if test -t 1; then
         RED="$(tput setaf 1)"
         GREEN="$(tput setaf 2)"
         YELLOW="$(tput setaf 3)"
+        export BOLD UNDERLINE NORMAL RED GREEN YELLOW 
     fi
 fi
 
@@ -21,86 +24,119 @@ command -v awk &> /dev/null || { echo "pgrep command not found; do : yum -y inst
 OK="[  ${GREEN}OK${NORMAL}  ]"
 FAILURE="[  ${RED}DOWN${NORMAL}  ]"
 WARNING="[  ${YELLOW}PASSED${NORMAL}  ]"
+export OK FAILURE WARNING
 
 ######################################
 removecron() {
     local cron_file CFG
-    CFG="${2}"
-    cron_file="/tmp/cron.$RANDOM.xrd.sh";
-    /usr/bin/crontab -l | sed "/\s*#.*/! { /xrdctl.*${CFG}/ d}" > ${cron_file}; # get current crontab and delete uncommented xrdctl lines
-    /usr/bin/crontab ${cron_file}; # put back the cron without xrd.sh
-    /bin/rm -f ${cron_file};
+    CFG="${1}"
+    cron_file="/tmp/cron.$RANDOM.xrdctl";
+    /usr/bin/crontab -l > "${cron_file}"
+    # get current crontab and delete xrdctl lines
+    PATTERN="xrdctl.*${CFG}" awk '$0 !~ ENVIRON["PATTERN"]' "${cron_file}" > "${cron_file}"
+    /usr/bin/sed -i -r '/^$/d;s/^[[:blank:]]*$//g' "${cron_file}" # delete empty lines
+    /usr/bin/crontab -r
+    /usr/bin/crontab "${cron_file}"; # put back the cron without xrdctl
+    /usr/bin/rm -f "${cron_file}";
 }
 
 ######################################
 addcron() {
-    local RUNDIR CFG
-    RUNDIR="${1}"
-    [[ -z "${RUNDIR}" ]] && return 1;
-    CFG="${2}"
+    local CFG
+    CFG="${1}"
 
-    removecron "${CFG}"  # clean up the old xrd.sh cron line
-    cron_file="/tmp/cron.${RANDOM}.xrd.sh";
+    ## get server arguments from config file.
+    eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
+    [[ -z "${__INSTANCE_NAME}" ]] && { echo "Instance name was not defined/found in ${CFG}"; exit 1; }
+
+    removecron "${CFG}"  # clean up the old xrdctl cron line
+    cron_file="/tmp/cron.${RANDOM}.xrdctl";
     /usr/bin/crontab -l > "${cron_file}"; # get current crontab
 
     ## add to cron_file the xrd.sh command
-    echo -ne "\
-*/5 * * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrdctl -c    ${CFG} >> ${RUNDIR}/logs/xrd.watchdog.log 2>&1\\n
-0   3 * * * BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrdctl -logs ${CFG} >> ${RUNDIR}/logs/xrd.watchdog.log 2>&1\\n
-@reboot     BASH_ENV=$HOME/.bash_profile ${XRDSHDIR}/xrdctl -c    ${CFG} >> ${RUNDIR}/logs/xrd.watchdog.log 2>&1\\n" >> ${cron_file}
+    echo -e "\
+*/5 * * * * BASH_ENV=$HOME/.bash_profile ${XRDCTLDIR}/xrdctl -c    ${CFG} > /dev/null 2>> ${XRDRUNDIR}/${__INSTANCE_NAME}/xrd.watchdog.log 2>&1\\n
+0   1 * * * BASH_ENV=$HOME/.bash_profile ${XRDCTLDIR}/xrdctl -logs ${CFG} > /dev/null 2>> ${XRDRUNDIR}/${__INSTANCE_NAME}/log_rotation.log 2>&1\\n" >> "${cron_file}"
 
-    /usr/bin/crontab "${cron_file}"; # put back the cron with xrd.sh
-    /usr/bin/crontab -l | /usr/bin/sed '/^$/d;s/[[:blank:]]//g' | /usr/bin/crontab # clean up any whitespaces
+    # put back the cron with xrdctl
+    /usr/bin/sed -i -r '/^$/d;s/^[[:blank:]]*$//g' "${cron_file}" # delete empty lines
+    echo >> "${cron_file}"; # add a newline to the end
+    /usr/bin/crontab "${cron_file}";
     /bin/rm -f "${cron_file}";
 }
 
 ######################################
 handlelogs() {
-    [[ -z "${XRDRUNDIR}" ]] && return 1;
-    cd "${XRDRUNDIR}" || { echo "XRDRUNDIR not found"; return 1; }
-    cd "${XRDRUNDIR}/logs" || { echo "{XRDRUNDIR}/logs not found"; return 1; }
+    ## get server arguments from config file.
+    eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
+    [[ -z "${__INSTANCE_NAME}" ]] && { echo "Instance name was not defined/found in ${CFG}"; exit 1; }
 
-    /bin/mkdir -p "${XRDRUNDIR}/logsbackup"
+    CMSD_LOGDIR="$(dirname "${__CMSD_LOG}")"
+    [[ -d "${CMSD_LOGDIR}" ]] || { echo "${CMSD_LOGDIR} not found"; return 1; }
+
+    XRD_LOGDIR="$(dirname "${__XRD_LOG}")"
+    [[ -d "${XRD_LOGDIR}" ]] || { echo "${XRD_LOGDIR} not found"; return 1; }
+
     local LOCK
     LOCK="${XRDRUNDIR}/logs/HANDLELOGS.lock"
-    #local todaynow=$(date +%Y%m%d_%k%M%S)
-    not_compressed=$(/bin/find . -type f \
+    #local NOW=$(date +%Y%m%d_%k%M%S)
+
+    not_compressed_cmsdlog=$(/usr/bin/find "${CMSD_LOGDIR}" -type f \
             -not -name '*.lock' -not -name '*.bz2' -not -name 'stage_log' \
             -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' \
             -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
 
     if [[ ! -f "${LOCK}" ]]; then
         touch "${LOCK}"
-        for log in ${not_compressed}; do
-            /usr/bin/bzip2 -9fq "${log}";
-        done
+        for log in ${not_compressed_cmsdlog}; do /usr/bin/bzip2 -9fq -- "${log}"; done
         /bin/rm -f "${LOCK}"
     fi
+
+    not_compressed_xrdlog=$(/usr/bin/find "${XRD_LOGDIR}" -type f \
+            -not -name '*.lock' -not -name '*.bz2' -not -name 'stage_log' \
+            -not -name 'cmslog' -not -name 'xrdlog' -not -name 'pstg_log' \
+            -not -name 'xrd.watchdog.log' -not -name 'apmon.log' -not -name 'servMon.log' -print)
+
+    if [[ ! -f "${LOCK}" ]]; then
+        touch "${LOCK}"
+        for log in ${not_compressed_xrdlog}; do /usr/bin/bzip2 -9fq -- "${log}"; done
+        /bin/rm -f "${LOCK}"
+    fi
+
     # move compressed to logs backup
-    find "${XRDRUNDIR}/logs/" -type f -name "*log.*.bz2" -exec mv '{}' "${XRDRUNDIR}/logsbackup/" \; &> /dev/null
+    /usr/bin/mkdir -p "${XRDRUNDIR}/logsbackup"
+    find "${XRDRUNDIR}/logs/" -type f -name "*.bz2" -exec mv '{}' "${XRDRUNDIR}/logsbackup/" \; &> /dev/null
 }
 
 ######################################
 help () {
 echo "usage: ${0} arg [configuration_file]
 where argument is _one_ of :
-[-f|--f|-restart|--restart] force restart
+[-l|--l|-list|--list] list found configuration files
+[-s|--s|-status|--status] show status of services
 [-c|--c|-check|--check] check and restart if not running
 [-k|--k|-kill|--kill] kill running processes
-[-s|--s|-status|--status] show status of services
+[-f|--f|-restart|--restart] force restart
 [-logs|--logs] manage the logs
 [-addcron|--addcron] add/refresh cron line
+[-removecron|--removecron] remove the cron line
 
 Environment variables:
-XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDSHDIR/run/
-XRDCONFDIR : location of system.cnf and XRDCF (default xrootd.xrootd.cf) conf files; if not set it will be XRDSHDIR/xrootd.conf/
-XRDCTL_DEBUG : if set (any value) it will enable various printouts of xrdctl";
+XRDCTL_CMD_XRD/XRDCTL_CMD_CMSD : xrootd and cmsd executables (other than the defaults from /usr/bin)
+XRDCTL_PRELOAD : use LD_PRELOAD for xrootd/cmsd processes
+XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDCTLDIR/run/
+XRDCONFDIR : location (directory) of .xrdcfg configuration file(s); if not set it wll be XRDCTLDIR/xrootd.conf/
+XRDCTL_DEBUG : if set (any value) it will enable various printouts of xrdctl
+XRDCTL_DEBUG_SETX : bash enable -x
+XRDCTL_DEBUG_XRD : if set enable debug flag for xrootd process
+XRDCTL_DEBUG_CMSD : if set enable debug flag for cmsd process
+where XRDCTLDIR is the detected location of xrdctl script";
 }
 
 ######################################
 getPidFiles () {
 [[ -z "${1}" ]] && return 1;
-local proc_out exitcode
+local proc_out files_list
 proc_out="$(/usr/bin/pgrep -u $(id -u) -ax $(basename ${1}))"
 [[ -z "${proc_out}" ]] && return $?
 files_list=$(awk '{for ( x = 1; x <= NF; x++ ) { if ($x == "-s") {print $(x+1)} }}' <<< "${proc_out}") #'
@@ -140,7 +176,6 @@ return 0;
 getInstance_pid_xrd () { XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}; getInstance_pid "${XRDCTL_CMD_XRD}" "${1}"; return $?; }
 getInstance_pid_cmsd () { XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}; getInstance_pid "${XRDCTL_CMD_CMSD}" "${1}"; return $?; }
 
-
 ######################################
 startXRDserv_help () {
 echo 'This wrapper for starting of _xrootd_ services use the following _required_ variables defined in the configuration
@@ -162,7 +197,7 @@ N.B.!! pid file location and admin path ar hardcoded to /tmp/xrootd_$(id -u)'
 
 ######################################
 status () {
-local CFG
+local CFG cmsd_pid cmsd_status cmsd_pid_found cmsd_pid_recorded __CMSD_PIDFILE xrd_pid xrd_status xrd_pid_found xrd_pid_recorded __XRD_PIDFILE message
 CFG="${1}"
 [[ -f "${CFG}" ]] || { echo "${CFG} not found!!"; return 1; }
 
@@ -170,9 +205,8 @@ CFG="${1}"
 eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 [[ -z "${__INSTANCE_NAME}" ]] && { echo "Instance name was not defined/found in ${CFG}"; exit 1; }
 
-local cmsd_pid cmsd_status cmsd_pid_found cmsd_pid_recorded __CMSD_PIDFILE
 cmsd_pid_found=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
-__CMSD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/cmsd.pid"
+__CMSD_PIDFILE="${XRDRUNDIR}/${__INSTANCE_NAME}/cmsd.pid"
 [[ -e "${__CMSD_PIDFILE}" ]] && cmsd_pid_recorded=$(<"${__CMSD_PIDFILE}")
 [[ -e "${__CMSD_PIDFILE}" && -z "${cmsd_pid_found}" ]] && cmsd_pidf_present_but_dead=" : cmsd pid file is present but process is not running"
 [[ "${cmsd_pid_found}" -eq "${cmsd_pid_recorded}" ]] && cmsd_pid="${cmsd_pid_found}"
@@ -182,9 +216,8 @@ else
     cmsd_status="${FAILURE}${cmsd_pidf_present_but_dead}"
 fi
 
-local xrd_pid xrd_status xrd_pid_found xrd_pid_recorded __XRD_PIDFILE
 xrd_pid_found=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
-__XRD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/xrootd.pid"
+__XRD_PIDFILE="${XRDRUNDIR}/${__INSTANCE_NAME}/xrootd.pid"
 [[ -e "${__XRD_PIDFILE}" ]] && xrd_pid_recorded=$(<"${__XRD_PIDFILE}")
 [[ -e "${__XRD_PIDFILE}" && -z "${xrd_pid_found}" ]] && xrd_pidf_present_but_dead=" : xrootd pid file is present but process is not running"
 [[ "${xrd_pid_found}" -eq "${xrd_pid_recorded}" ]] && xrd_pid="${xrd_pid_found}"
@@ -194,17 +227,24 @@ else
     xrd_status="${FAILURE}${xrd_pidf_present_but_dead}"
 fi
 
-echo -e "******************************************
+message="******************************************
 $(date) :: Status for instance : ${__INSTANCE_NAME}
 Status CMSD :\t${cmsd_status}
 Status XROOTD :\t${xrd_status}
 "
-[[ -z "${cmsd_pid}" || -z "${cmsd_pid}" ]] && return 1 || return 0
+
+if [[ -z "${cmsd_pid}" || -z "${cmsd_pid}" ]]; then
+    echo -e "${message}" >&2
+    return 1
+else
+    echo -e "${message}"
+    return 0
+fi
 }
 
 ######################################
 startXROOTDprocs () {
-local CFG cmsd_needed cmsd_instances XRDCTL_CMD_CMSD CMSD_START xrd_instances XRDCTL_CMD_XRD XRD_START
+local CFG cmsd_needed cmsd_instances XRDCTL_CMD_CMSD xrd_instances XRDCTL_CMD_XRD
 CFG="${1}"
 [[ -f "${CFG}" ]] || { echo "${CFG} not found!!"; return 1; }
 
@@ -214,50 +254,48 @@ eval "$(sed -ne 's/\#@@/local /gp;' ${CFG})"
 
 cmsd_needed=$(grep 'all.role' "${CFG}")
 if [[ -n "${cmsd_needed}" ]]; then
-    local __CMSD_PIDFILE __CMSD_ADMINPATH
-    __CMSD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/cmsd.pid"  # it will be "fenced" by xrootd
-    __CMSD_ADMINPATH="$(dirname ${__CMSD_PIDFILE})"
+    local __CMSD_PIDFILE
+    __CMSD_PIDFILE="${XRDRUNDIR}/${__INSTANCE_NAME}/cmsd.pid"
 
     ## make sure that they are defined
     # shellcheck disable=2153
     [[ -z "${__CMSD_LOG}" ]] && { startCMSDserv_help; exit 1; }
 
     ## not matter how is enabled the debug mode means -d
-    [[ -n "${__CMSD_DEBUG}" ]] && __CMSD_DEBUG="-d"
+    [[ -n "${XRDCTL_DEBUG_CMSD}" ]] && CMSD_DEBUG="-d"
 
     ## make sure that no services with the same instance name are started
     cmsd_instances=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
     [[ ${cmsd_instances}  =~ ${__INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND CMSD SERVICE WITH THE SAME INSTANCE NAME: ${cmsd_instances}/${__INSTANCE_NAME}! <<<<<<<"; return 1; }
 
     XRDCTL_CMD_CMSD=${XRDCTL_CMD_CMSD:-/usr/bin/cmsd}
-    [[ -n "${XRDCTL_PRELOAD}" ]] && XRDCTL_CMD_CMSD="LD_PRELOAD=${XRDCTL_PRELOAD} ${XRDCTL_CMD_CMSD}"
-    CMSD_START="${XRDCTL_CMD_CMSD} -b ${__CMSD_DEBUG} -n ${__INSTANCE_NAME} -s ${__CMSD_PIDFILE} -a ${__CMSD_ADMINPATH} -w ${__CMSD_ADMINPATH} -l ${__CMSD_LOG} -c ${CFG}"
+    [[ -n "${XRDCTL_PRELOAD}" ]] && XRDCTL_CMD_CMSD="LD_PRELOAD=\"${XRDCTL_PRELOAD}\" ${XRDCTL_CMD_CMSD}"
 
     # start the service
-    ${CMSD_START}
+    ${XRDCTL_CMD_CMSD} -b "${CMSD_DEBUG}" -n "${__INSTANCE_NAME}" -s "${__CMSD_PIDFILE}" -a "${XRDRUNDIR}" -w "${XRDRUNDIR}" -l "${__CMSD_LOG}" -c "${CFG}"
 fi
 
 ## make sure that they are defined
-local __XRD_PIDFILE __XRD_ADMINPATH
-__XRD_PIDFILE="/tmp/xrootd_$(id -u)/${__INSTANCE_NAME}/xrootd.pid"  # it will be "fenced" by xrootd
-__XRD_ADMINPATH="$(dirname ${__XRD_PIDFILE})"
+local __XRD_PIDFILE
+__XRD_PIDFILE="${XRDRUNDIR}/${__INSTANCE_NAME}/xrootd.pid"
 
 # shellcheck disable=2153
 [[ -z "${__XRD_LOG}"  ]]  && { startXRDserv_help; exit 1; }
 
 ## not matter how is enabled the debug mode means -d
-[[ -n "${__XRD_DEBUG}" ]] && __XRD_DEBUG="-d"
+[[ -n "${XRDCTL_DEBUG_XRD}" ]] && XRD_DEBUG="-d"
 
 ## make sure that no services with the same instance name are started
 xrd_instances=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
 [[ ${xrd_instances} =~ ${__INSTANCE_NAME} ]] && { echo "startXROOTDprocs :: >>>>>> FOUND XROOTD SERVICE WITH THE SAME INSTANCE NAME: ${xrd_instances}/${__INSTANCE_NAME}! <<<<<<<"; return 1; }
 
 XRDCTL_CMD_XRD=${XRDCTL_CMD_XRD:-/usr/bin/xrootd}
-[[ -n "${XRDCTL_PRELOAD}" ]] && XRDCTL_CMD_XRD="LD_PRELOAD=${XRDCTL_PRELOAD} ${XRDCTL_CMD_XRD}"
-XRD_START="${XRDCTL_CMD_XRD}  -b ${__XRD_DEBUG} -n ${__INSTANCE_NAME} -s ${__XRD_PIDFILE} -a ${__XRD_ADMINPATH} -w ${__XRD_ADMINPATH} -l ${__XRD_LOG} -c ${CFG}"
+[[ -n "${XRDCTL_PRELOAD}" ]] && XRDCTL_CMD_XRD="LD_PRELOAD=\"${XRDCTL_PRELOAD}\" ${XRDCTL_CMD_XRD}"
 
 # start the service
-${XRD_START}
+${XRDCTL_CMD_XRD} -b "${XRD_DEBUG}" -n "${__INSTANCE_NAME}" -s "${__XRD_PIDFILE}" -a "${XRDRUNDIR}" -w "${XRDRUNDIR}" -l "${__XRD_LOG}" -c "${CFG}"
+
+addcron "${CFG}"
 }
 
 ######################################
@@ -275,8 +313,10 @@ cmsd_pid=$(getInstance_pid_cmsd "${__INSTANCE_NAME}")
 xrd_pid=$(getInstance_pid_xrd "${__INSTANCE_NAME}")
 [[ -n "${xrd_pid}" ]] && /usr/bin/kill "${xrd_pid}"
 
-MON_PERF=$(awk '/\s+#/ && /cms.perf/ {for ( x = 1; x <= NF; x++ ) {if ($x == "pgm") {print $(x+1)} }}' "${CFG}") #'
-[[ -n "${MON_PERF}" ]] && /usr/bin/pkill -x $(basename "${MON_PERF}")
+MON_PERF=$(awk '/\s*cms.perf/ {for ( x = 1; x <= NF; x++ ) {if ($x == "pgm") {print $(x+1)} }}' "${CFG}") #'
+[[ -n "${MON_PERF}" ]] && /usr/bin/pkill -f "${MON_PERF}"
+
+removecron "${CFG}"
 }
 
 ######################################
@@ -294,7 +334,7 @@ checkXROOTDprocs () {
 local CFG
 CFG="${1}"
 [[ -f "${CFG}" ]] || { echo "${CFG} not found!!"; return 1; }
-status "${CFG}" &> /dev/null || { restartXROOTDprocs "${CFG}"; }
+status "${CFG}" > /dev/null || { echo "Check failed, restarting.." >&2 ; restartXROOTDprocs "${CFG}"; }
 }
 
 ######################################
@@ -302,13 +342,18 @@ status "${CFG}" &> /dev/null || { restartXROOTDprocs "${CFG}"; }
 ## find the location of xrdctl script
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "${SOURCE}" ]; do ## resolve $SOURCE until the file is no longer a symlink
-    XRDSHDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
+    XRDCTLDIR="$( cd -P "$(dirname "${SOURCE}" )" && pwd )" ##"
     SOURCE="$(readlink "${SOURCE}")" ##"
-    [[ "${SOURCE}" != /* ]] && SOURCE="${XRDSHDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+    [[ "${SOURCE}" != /* ]] && SOURCE="${XRDCTLDIR}/${SOURCE}" ## if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
-XRDSHDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
+XRDCTLDIR="$(cd -P "$( dirname "${SOURCE}" )" && pwd)" ##"
+XRDRUNDIR=${XRDRUNDIR:-${XRDCTLDIR}/run/}  # location of admin, core dirs
 
 case "${1}" in
+-l|--l|-list|--list)
+    DO_LIST="1"
+    shift
+    ;;
 -c|--c|-check|--check)
     DO_CHECK="1"
     shift
@@ -329,12 +374,22 @@ case "${1}" in
     DO_LOGS="1"
     shift
     ;;
--crontab|--crontab)
+-addcron|--addcron)
     DO_CRONTAB="1"
     shift
     ;;
+-removecron|--removecron)
+    DO_REMOVECRON="1"
+    shift
+    ;;
+-h|--h|-help|--help)
+    shift
+    help
+    exit 0
+    ;;
 -*|--*) # unsupported flags, just catch any mistakes
     echo "Error: Unsupported flag ${1}" >&2
+    help
     exit 1
     ;;
 esac
@@ -347,44 +402,32 @@ fi
 ## establish the configuration files to be acted upon
 declare -a CONF_LIST  # container for configuration file(s)
 
+# 1st arg if present is configuration file or directory
 if [[ -n "${1}" ]]; then
-    CONF_ARG="$(realpath -e ${1})"
-
-    [[ -f "${CONF_ARG}" ]] && CONF_LIST+=("${CONF_ARG}")  # is arg is file
-    if [[ -d "${CONF_ARG}" ]]; then  # is arg is directory
-        if [[ -n "${XRDCTL_MULTISRV}" ]]; then
-            for conf_file in "${CONF_ARG}"/*.xrdcfg; do
-                CONF_LIST+=("${conf_file}");
-            done
-        else
-            CONF_LIST+=("${CONF_ARG}/xrootd.xrootd.cf")  # default filename for configuration
-        fi
-    fi
-fi
-
-if [[ ${#CONF_LIST[@]} -eq 0 ]]; then  # if the configuration was not specified then..
-XRDRUNDIR=${XRDRUNDIR:-${XRDSHDIR}/run/}  # location of logs, admin, core dirs
-XRDCONFDIR=${XRDCONFDIR:-${XRDSHDIR}/xrootd.conf/}  # location of configuration file(s)
-    if [[ -n "${XRDCTL_MULTISRV}" ]]; then
-        for conf_file in "${XRDCONFDIR}"/*.xrdcfg; do
+    CONF_ARG=$(realpath -e "${1}")
+    [[ -f "${CONF_ARG}" ]] && CONF_LIST+=("${CONF_ARG}")  # arg is file add to conf list
+    if [[ -d "${CONF_ARG}" ]]; then  # arg is directory, let's parse it
+        for conf_file in "${CONF_ARG}"/*.xrdcfg; do
             CONF_LIST+=("${conf_file}");
         done
-    else
-        [[ -f "${XRDCONFDIR}/xrootd.xrootd.cf" ]] && CONF_LIST+=("${XRDCONFDIR}/xrootd.xrootd.cf")
     fi
+else # if configuration was not specified in command line
+    XRDCONFDIR=${XRDCONFDIR:-${XRDCTLDIR}/xrootd.conf/}  # location of configuration file(s)
+    for conf_file in "${XRDCONFDIR}"/*.xrdcfg; do
+        CONF_LIST+=("${conf_file}");
+    done
 fi
+[[ ${#CONF_LIST[@]} -eq 0 ]] && { echo "No configuration file(s) found"; exit 1; }
 
-[[ ${#CONF_LIST[@]} -eq 0 ]] && { echo "No configuration file found"; exit 1; }
-
+# act on the list of configurations; it will contain either the one specified by arg or auto-discovered ones
 for cfg in "${CONF_LIST[@]}" ; do
+    [[ -n ${DO_LIST} ]] && { /usr/bin/realpath "${cfg}"; continue; }
+    [[ -n ${DO_STATUS} ]] && { status "${cfg}"; continue; }
     [[ -n ${DO_CHECK} ]] && { checkXROOTDprocs "${cfg}"; continue; }
     [[ -n ${DO_KILL} ]] && { killXROOTDprocs "${cfg}"; continue; }
     [[ -n ${DO_RESTART} ]] && { restartXROOTDprocs "${cfg}"; continue; }
-    [[ -n ${DO_STATUS} ]] && { status "${cfg}"; continue; }
     [[ -n ${DO_LOGS} ]] && { handlelogs "${cfg}"; continue; }
     [[ -n ${DO_CRONTAB} ]] && { addcron "${cfg}"; continue; }
+    [[ -n ${DO_REMOVECRON} ]] && { removecron "${cfg}"; continue; }
 done
-
-
-
 

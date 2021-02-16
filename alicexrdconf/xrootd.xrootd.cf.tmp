@@ -3,8 +3,6 @@
 # Configuration file syntax
 # https://xrootd.slac.stanford.edu/doc/dev49/Syntax_config.htm
 
-set isWritable = writable
-
 set myName = SITENAME
 set myRedirector = MANAGERHOST
 
@@ -14,6 +12,12 @@ set portCMSD   = CMSDMANAGERPORT
 
 ##########################################################
 ##   COMMON SETTINGS   ##
+
+if defined ?~XRD_READONLY
+    set isWritable = nowritable
+else
+    set isWritable = writable
+fi
 
 # https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272884
 all.export / nolock $isWritable
@@ -145,7 +149,7 @@ else
 
     # Specify the location of the file system authorization interface layer.
     # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410311
-    ofs.authlib /usr/lib64/ACCLIB
+    ofs.authlib /usr/lib64/libXrdAliceTokenAcc.so
 
     # The funny ALICE name translation, for the global metamanager to aggregate all the clusters
     # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410349
@@ -156,9 +160,10 @@ else
     # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410339
     oss.localroot LOCALROOT
 
-    # Specify the location of a file system that is to be used to hold data files.
+    # Specify the location of a file systems that is to be used to hold data files.
+    # Only IF multiple locations are to be aggregated.
     # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410342
-    OSSCACHE
+    # OSS_SPACE
 
 fi
 
@@ -168,5 +173,3 @@ fi
 #@@__INSTANCE_NAME="test_serv"
 #@@__XRD_LOG="/tmp/xrootd_$(id -u)/xrd.log"
 #@@__CMSD_LOG="/tmp/xrootd_$(id -u)/cmsd.log"
-#@@__XRD_DEBUG=""
-#@@__CMSD_DEBUG=""
