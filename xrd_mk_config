@@ -356,7 +356,7 @@ for i in "${!CONF_LIST[@]}"; do
         for DIR in "${OSS_SPACE_LIST[@]}"; do
             [[ -n "${OSS_SPACE_TXT}" ]] && OSS_SPACE_TXT="${OSS_SPACE_TXT}\noss.space ${OSS_SPACE_NAME} ${DIR}" || OSS_SPACE_TXT="oss.space ${OSS_SPACE_NAME} ${DIR}"
         done
-        sed --follow-symlinks -i "s#OSS_SPACE#${OSS_SPACE_TXT}#g;" "${CFG}";
+        sed --follow-symlinks -i "s#^.*OSS_SPACE.*\$#${OSS_SPACE_TXT}#g;" "${CFG}";
     fi
 done
 
