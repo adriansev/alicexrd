@@ -122,6 +122,7 @@ where argument is _one_ of :
 [-removecron|--removecron] remove the cron line
 
 Environment variables:
+XRD_READONLY : checked by xrootd as instructed by configuration; if set the export will be declared as notwritable
 XRDCTL_CMD_XRD/XRDCTL_CMD_CMSD : xrootd and cmsd executables (other than the defaults from /usr/bin)
 XRDCTL_PRELOAD : use LD_PRELOAD for xrootd/cmsd processes
 XRDRUNDIR : location of admin,core,logs,logsbackup dirs; if not set it will be XRDCTLDIR/run/
