@@ -25,8 +25,8 @@ XRDRUNDIR=${XRDRUNDIR:=~/alicexrdrun}
 mkdir -p ${XRDSHDIR} ${XRDRUNDIR} ${XRDCONFDIR}
 
 # Script for starting services
-${CURL} ${XRDSHDIR}/xrd.sh                 ${LOCATION}/${BRANCH}/xrd.sh
-chmod +x ${XRDSHDIR}/xrd.sh
+${CURL} ${XRDSHDIR}/xrdctl          ${LOCATION}/${BRANCH}/xrdctl        && chmod +x ${XRDSHDIR}/xrdctl
+${CURL} ${XRDSHDIR}/xrd_mk_config   ${LOCATION}/${BRANCH}/xrd_mk_config && chmod +x ${XRDSHDIR}/xrd_mk_config
 
 # Main configurations
 ${CURL} ${XRDCONFDIR}/system.cnf_CHANGEME  ${LOCATION}/${BRANCH}/alicexrdconf/system.cnf_CHANGEME
