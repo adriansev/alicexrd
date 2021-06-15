@@ -19,13 +19,13 @@ else
     set isWritable = writable
 fi
 
-# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272884
-all.export / nolock $isWritable
-
 # DEFAULTS
 # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410337
 # explicit set the defaults
 oss.defaults nocheck nodread nomig nomkeep nomlock nommap nopurge norcreate nostage xattrs
+
+# https://xrootd.slac.stanford.edu/doc/dev51/xrd_config.htm#_Toc49272884
+all.export / nolock $isWritable
 
 # Specify the way a disk partition is selected for file placement.
 # https://xrootd.slac.stanford.edu/doc/dev51/ofs_config.htm#_Toc53410336
